@@ -14,7 +14,7 @@ canvas{display:block;background:#020617;}
 </head>
 <body>
 <div id="ui">Score: <span id="score">0</span> / Life: <span id="life">3</span> / Best: <span id="best">0</span></div>
-<div id="msg">MINI GALAGA v3<br><small>Touch the screen to start</small></div>
+<div id="msg">MINI GALAGA v4<br><small>Touch the screen to start</small></div>
 <canvas id="game"></canvas>
 
 <script>
@@ -29,7 +29,7 @@ let W,H,player,bullets,enemies,booms,score,life,state,startTime,elapsed,bgIndex,
 let lastShot=0,timer=0,lastDifficultyAt=0,nextBossAt=60000,enemySpeed=1;
 const stars=[];
 const MAX_ENEMY_SPEED=1.8;
-const START_ENEMY_SPEED=0.8;
+const START_ENEMY_SPEED=0.7;
 const BG_NAMES=["Space","Moon","Earth","Desert"];
 
 const audio={
@@ -91,7 +91,7 @@ function reset(){
   highScore=Number(localStorage.getItem("miniGalagaHighScore") || 0);
   state="ready";
   updateUI();
-  msg.innerHTML="MINI GALAGA v3<br><small>Touch the screen to start</small>";
+  msg.innerHTML="MINI GALAGA v4<br><small>Touch the screen to start</small>";
   msg.style.display="block";
 }
 
