@@ -29,6 +29,7 @@ let W,H,player,bullets,enemies,booms,score,life,state,startTime,elapsed,bgIndex,
 let lastShot=0,timer=0,lastDifficultyAt=0,nextBossAt=60000,enemySpeed=1;
 const stars=[];
 const MAX_ENEMY_SPEED=2.6;
+const START_ENEMY_SPEED=0.9;
 const BG_NAMES=["Space","Moon","Earth","Desert"];
 
 const audio={
@@ -82,7 +83,7 @@ function reset(){
   life=3;
   elapsed=0;
   bgIndex=0;
-  enemySpeed=1;
+  enemySpeed=START_ENEMY_SPEED;
   lastDifficultyAt=0;
   nextBossAt=60000;
   timer=0;
@@ -104,7 +105,7 @@ function start(){
     life=3;
     elapsed=0;
     bgIndex=0;
-    enemySpeed=1;
+    enemySpeed=START_ENEMY_SPEED;
     lastDifficultyAt=0;
     nextBossAt=60000;
     timer=0;
