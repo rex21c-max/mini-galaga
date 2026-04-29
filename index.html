@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Mini Galaga v2</title>
+<title>Mini Galaga v3</title>
 <style>
 html,body{margin:0;padding:0;overflow:hidden;background:#050814;touch-action:none;}
 canvas{display:block;background:#020617;}
@@ -13,8 +13,8 @@ canvas{display:block;background:#020617;}
 </style>
 </head>
 <body>
-<div id="ui">Score: <span id="score">0</span> / Life: <span id="life">3</span></div>
-<div id="msg">MINI GALAGA v2<br><small>?붾㈃???곗튂?섎㈃ ?쒖옉</small></div>
+<div id="ui">Score: <span id="score">0</span> / Life: <span id="life">3</span> / Best: <span id="best">0</span></div>
+<div id="msg">MINI GALAGA v3<br><small>Touch the screen to start</small></div>
 <canvas id="game"></canvas>
 
 <script>
@@ -22,11 +22,14 @@ const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 const scoreEl=document.getElementById("score");
 const lifeEl=document.getElementById("life");
+const bestEl=document.getElementById("best");
 const msg=document.getElementById("msg");
 
-let W,H,player,bullets,enemies,booms,score,life,state;
-let lastShot=0,timer=0;
+let W,H,player,bullets,enemies,booms,score,life,state,startTime,elapsed,bgIndex,highScore;
+let lastShot=0,timer=0,lastDifficultyAt=0,nextBossAt=60000,enemySpeed=1;
 const stars=[];
+const MAX_ENEMY_SPEED=2.6;
+const BG_NAMES=["Space","Moon","Earth","Desert"];
 
 const audio={
   ctx:null,
@@ -77,9 +80,17 @@ function reset(){
   booms=[];
   score=0;
   life=3;
+  elapsed=0;
+  bgIndex=0;
+  enemySpeed=1;
+  lastDifficultyAt=0;
+  nextBossAt=60000;
+  timer=0;
+  lastShot=0;
+  highScore=Number(localStorage.getItem("miniGalagaHighScore") || 0);
   state="ready";
   updateUI();
-  msg.innerHTML="MINI GALAGA v2<br><small>?붾㈃???곗튂?섎㈃ ?쒖옉</small>";
+  msg.innerHTML="MINI GALAGA v3<br><small>Touch the screen to start</small>";
   msg.style.display="block";
 }
 
@@ -91,6 +102,14 @@ function start(){
     booms=[];
     score=0;
     life=3;
+    elapsed=0;
+    bgIndex=0;
+    enemySpeed=1;
+    lastDifficultyAt=0;
+    nextBossAt=60000;
+    timer=0;
+    lastShot=0;
+    startTime=performance.now();
     state="play";
     msg.style.display="none";
     updateUI();
@@ -101,6 +120,7 @@ function start(){
 function updateUI(){
   scoreEl.textContent=score;
   lifeEl.textContent=life;
+  bestEl.textContent=highScore;
 }
 
 function initAudio(){
@@ -256,19 +276,27 @@ function drawPlayer(){
 }
 
 function drawEnemy(e){
-  ctx.fillStyle="#fb7185";
+  const boss=e.type==="boss";
+  ctx.fillStyle=boss ? "#a78bfa" : "#fb7185";
+  ctx.shadowBlur=boss ? 18 : 0;
+  ctx.shadowColor="#c4b5fd";
   ctx.beginPath();
-  ctx.moveTo(e.x,e.y+18);
-  ctx.lineTo(e.x+22,e.y-18);
-  ctx.lineTo(e.x+5,e.y-8);
-  ctx.lineTo(e.x,e.y-14);
-  ctx.lineTo(e.x-5,e.y-8);
-  ctx.lineTo(e.x-22,e.y-18);
+  ctx.moveTo(e.x,e.y+e.h/2);
+  ctx.lineTo(e.x+e.w/2,e.y-e.h/2);
+  ctx.lineTo(e.x+e.w*.12,e.y-e.h*.22);
+  ctx.lineTo(e.x,e.y-e.h*.38);
+  ctx.lineTo(e.x-e.w*.12,e.y-e.h*.22);
+  ctx.lineTo(e.x-e.w/2,e.y-e.h/2);
   ctx.closePath();
   ctx.fill();
+  ctx.shadowBlur=0;
 
-  ctx.fillStyle="#fecdd3";
-  ctx.fillRect(e.x-10,e.y-2,20,5);
+  ctx.fillStyle=boss ? "#ede9fe" : "#fecdd3";
+  ctx.fillRect(e.x-e.w*.24,e.y-2,e.w*.48,5);
+  if(boss){
+    ctx.fillStyle="#fef08a";
+    for(let i=0;i<e.hp;i++)ctx.fillRect(e.x-18+i*13,e.y+18,8,5);
+  }
 }
 
 function hit(a,b){
@@ -294,7 +322,21 @@ function spawn(){
     y:-30,
     w:42,
     h:36,
-    s:2.2+Math.random()*2+level*.25
+    s:(2.2+Math.random()*2+level*.25)*enemySpeed,
+    type:"normal",
+    hp:1
+  });
+}
+
+function spawnBoss(){
+  enemies.push({
+    x:60+Math.random()*(W-120),
+    y:-60,
+    w:78,
+    h:68,
+    s:Math.min(2.6,1.55*enemySpeed),
+    type:"boss",
+    hp:3
   });
 }
 
@@ -313,13 +355,28 @@ function boom(x,y){
 
 function end(){
   state="over";
+  if(score>highScore){
+    highScore=score;
+    localStorage.setItem("miniGalagaHighScore",String(highScore));
+  }
+  updateUI();
   playGameOverSound();
-  msg.innerHTML="GAME OVER<br><small>Score: "+score+"<br>?곗튂?섎㈃ ?ㅼ떆 ?쒖옉</small>";
+  msg.innerHTML="GAME OVER<br><small>Score: "+score+" / Best: "+highScore+"<br>Touch to restart</small>";
   msg.style.display="block";
 }
 
 function update(t){
   if(state!=="play")return;
+
+  elapsed=t-startTime;
+  while(elapsed-lastDifficultyAt>=30000){
+    enemySpeed=Math.min(MAX_ENEMY_SPEED,enemySpeed*1.1);
+    lastDifficultyAt+=30000;
+  }
+  while(elapsed>=nextBossAt){
+    spawnBoss();
+    nextBossAt+=60000;
+  }
 
   shoot(t);
 
@@ -367,10 +424,18 @@ function update(t){
       let b=bullets[j];
       if(hit(b,e)){
         bullets.splice(j,1);
+        e.hp--;
+        if(e.hp>0)continue;
         enemies.splice(i,1);
         boom(e.x,e.y);
         playBoomSound();
-        score+=10;
+        if(e.type==="boss"){
+          score+=50;
+          life++;
+          bgIndex=(bgIndex+1)%BG_NAMES.length;
+        }else{
+          score+=10;
+        }
         updateUI();
         break;
       }
@@ -381,58 +446,119 @@ function update(t){
 function drawStars(){
   const t=Date.now();
   const bg=ctx.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,"#070421");
-  bg.addColorStop(.45,"#061329");
-  bg.addColorStop(1,"#020617");
+  if(bgIndex===1){
+    bg.addColorStop(0,"#111827");
+    bg.addColorStop(.6,"#374151");
+    bg.addColorStop(1,"#0f172a");
+  }else if(bgIndex===2){
+    bg.addColorStop(0,"#38bdf8");
+    bg.addColorStop(.55,"#7dd3fc");
+    bg.addColorStop(1,"#dcfce7");
+  }else if(bgIndex===3){
+    bg.addColorStop(0,"#fbbf24");
+    bg.addColorStop(.58,"#fb923c");
+    bg.addColorStop(1,"#7c2d12");
+  }else{
+    bg.addColorStop(0,"#070421");
+    bg.addColorStop(.45,"#061329");
+    bg.addColorStop(1,"#020617");
+  }
   ctx.fillStyle=bg;
   ctx.fillRect(0,0,W,H);
 
-  const nebula=ctx.createRadialGradient(W*.72,H*.24,10,W*.72,H*.24,Math.max(W,H)*.58);
-  nebula.addColorStop(0,"rgba(56,189,248,.22)");
-  nebula.addColorStop(.35,"rgba(168,85,247,.12)");
-  nebula.addColorStop(1,"rgba(2,6,23,0)");
-  ctx.fillStyle=nebula;
-  ctx.fillRect(0,0,W,H);
+  if(bgIndex===0){
+    const nebula=ctx.createRadialGradient(W*.72,H*.24,10,W*.72,H*.24,Math.max(W,H)*.58);
+    nebula.addColorStop(0,"rgba(56,189,248,.22)");
+    nebula.addColorStop(.35,"rgba(168,85,247,.12)");
+    nebula.addColorStop(1,"rgba(2,6,23,0)");
+    ctx.fillStyle=nebula;
+    ctx.fillRect(0,0,W,H);
 
-  ctx.fillStyle="rgba(251,191,36,.9)";
-  ctx.beginPath();
-  ctx.arc(W*.16,H*.18,Math.max(18,Math.min(W,H)*.045),0,Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle="rgba(251,191,36,.22)";
-  ctx.beginPath();
-  ctx.arc(W*.16,H*.18,Math.max(32,Math.min(W,H)*.085),0,Math.PI*2);
-  ctx.fill();
-
-  ctx.strokeStyle="rgba(56,189,248,.12)";
-  ctx.lineWidth=1;
-  for(let y=(t/35)%42;y<H;y+=42){
+    ctx.fillStyle="rgba(251,191,36,.9)";
     ctx.beginPath();
-    ctx.moveTo(0,y);
-    ctx.lineTo(W,y+H*.12);
-    ctx.stroke();
+    ctx.arc(W*.16,H*.18,Math.max(18,Math.min(W,H)*.045),0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle="rgba(251,191,36,.22)";
+    ctx.beginPath();
+    ctx.arc(W*.16,H*.18,Math.max(32,Math.min(W,H)*.085),0,Math.PI*2);
+    ctx.fill();
   }
 
-  stars.forEach(star=>{
-    const y=(star.y+t/28*star.s)%H;
-    ctx.globalAlpha=star.a;
-    ctx.fillStyle="#e0f2fe";
-    ctx.fillRect(star.x,y,star.r,star.r);
-    if(star.s>1.4){
-      ctx.globalAlpha=star.a*.35;
-      ctx.fillRect(star.x,y-star.s*8,star.r,star.s*8);
+  if(bgIndex===1){
+    ctx.fillStyle="rgba(229,231,235,.92)";
+    ctx.beginPath();
+    ctx.arc(W*.75,H*.22,Math.max(42,Math.min(W,H)*.09),0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle="rgba(75,85,99,.45)";
+    for(let i=0;i<7;i++){
+      ctx.beginPath();
+      ctx.arc(W*.75+Math.cos(i)*38,H*.22+Math.sin(i*1.7)*28,7+i%3*4,0,Math.PI*2);
+      ctx.fill();
     }
-  });
-  ctx.globalAlpha=1;
-
-  for(let i=0;i<6;i++){
-    const x=(i*173+t/90)%(W+120)-60;
-    const y=(i*91+t/45)%(H+120)-60;
-    ctx.strokeStyle="rgba(125,211,252,.12)";
-    ctx.beginPath();
-    ctx.moveTo(x,y);
-    ctx.lineTo(x-18,y+54);
-    ctx.stroke();
+    ctx.fillStyle="rgba(156,163,175,.55)";
+    for(let x=-80+(t/60)%80;x<W+80;x+=80){
+      ctx.beginPath();
+      ctx.arc(x,H+16,70,Math.PI,0);
+      ctx.fill();
+    }
   }
+
+  if(bgIndex===2){
+    ctx.fillStyle="rgba(255,255,255,.72)";
+    for(let i=0;i<5;i++){
+      const x=(i*180+t/70)%(W+220)-110;
+      const y=H*.16+i%3*52;
+      ctx.beginPath();
+      ctx.arc(x,y,24,0,Math.PI*2);
+      ctx.arc(x+28,y+4,30,0,Math.PI*2);
+      ctx.arc(x+62,y,21,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.fillStyle="#16a34a";
+    ctx.beginPath();
+    ctx.moveTo(0,H);
+    for(let x=0;x<=W;x+=60)ctx.lineTo(x,H-70-Math.sin((x+t/35)*.014)*28);
+    ctx.lineTo(W,H);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  if(bgIndex===3){
+    ctx.fillStyle="rgba(254,243,199,.7)";
+    ctx.beginPath();
+    ctx.arc(W*.82,H*.18,Math.max(24,Math.min(W,H)*.055),0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle="#b45309";
+    for(let y=H*.62;y<H+120;y+=95){
+      ctx.beginPath();
+      ctx.moveTo(0,y);
+      for(let x=0;x<=W;x+=80)ctx.lineTo(x,y+Math.sin((x+t/80)*.01)*28);
+      ctx.lineTo(W,H+120);
+      ctx.lineTo(0,H+120);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  if(bgIndex<2){
+    stars.forEach(star=>{
+      const y=(star.y+t/28*star.s)%H;
+      ctx.globalAlpha=star.a;
+      ctx.fillStyle="#e0f2fe";
+      ctx.fillRect(star.x,y,star.r,star.r);
+      if(star.s>1.4){
+        ctx.globalAlpha=star.a*.35;
+        ctx.fillRect(star.x,y-star.s*8,star.r,star.s*8);
+      }
+    });
+    ctx.globalAlpha=1;
+  }
+
+  ctx.fillStyle="rgba(15,23,42,.42)";
+  ctx.fillRect(8,34,120,22);
+  ctx.fillStyle="#e0f2fe";
+  ctx.font="13px sans-serif";
+  ctx.fillText("BG: "+BG_NAMES[bgIndex],16,50);
 }
 
 function draw(){
@@ -491,6 +617,7 @@ canvas.addEventListener("mousemove",e=>{
 });
 
 reset();
+msg.innerHTML="MINI GALAGA v3<br><small>Touch the screen to start</small>";
 loop();
 </script>
 </body>
