@@ -47,7 +47,7 @@ const bestEl=document.getElementById("best");
 const shotEl=document.getElementById("shot");
 
 let W,H;
-let player,bullets,enemies,enemyBullets,items,booms,stars;
+let player,bullets,enemies,enemyBullets,items,booms,stars,trail;
 let score,life,best,shotLevel,state,startTime,enemySpeed,nextBossAt,bossCount,lastShot,lastDifficultyAt,invincibleUntil;
 let shake=0;
 let bgIndex=0;
@@ -89,6 +89,7 @@ function resetVars(){
   enemyBullets=[];
   items=[];
   booms=[];
+  trail=[];
   score=0;
   life=3;
   shotLevel=1;
@@ -364,6 +365,9 @@ function update(t){
   if(state!=="play")return;
   if(t<hitStopUntil)return;
 
+  trail.push({x:player.x,y:player.y});
+  if(trail.length>10)trail.shift();
+
   const elapsed=t-startTime;
   const elapsedSec=elapsed/1000;
 
@@ -571,15 +575,35 @@ function drawBackground(){
   ctx.fillText("BG: "+BG_NAMES[bgIndex],16,50);
 }
 
+function drawTrail(){
+  if(!trail.length)return;
+  trail.forEach((p,i)=>{
+    const alpha=(i+1)/trail.length*.22;
+    const radius=6+i*.55;
+    ctx.globalAlpha=alpha;
+    ctx.shadowBlur=18;
+    ctx.shadowColor="#38bdf8";
+    ctx.fillStyle="#38bdf8";
+    ctx.beginPath();
+    ctx.arc(p.x,p.y+16, radius,0,Math.PI*2);
+    ctx.fill();
+  });
+  ctx.shadowBlur=0;
+  ctx.globalAlpha=1;
+}
+
 function drawPlayer(){
-  const invincible=performance.now()<invincibleUntil || performance.now()<playerHitInvincibleUntil;
-  if(invincible&&Math.floor(performance.now()/90)%2===0)ctx.globalAlpha=.45;
+  const now=performance.now();
+  const invincible=now<invincibleUntil || now<playerHitInvincibleUntil;
+  if(invincible&&Math.floor(now/90)%2===0)ctx.globalAlpha=.45;
 
   ctx.shadowBlur=invincible?28:18;
   ctx.shadowColor=invincible?"#facc15":"#38bdf8";
 
-  const g=ctx.createLinearGradient(player.x,player.y-34,player.x,player.y+38);
-  g.addColorStop(0,"#eff6ff");g.addColorStop(.45,"#38bdf8");g.addColorStop(1,"#1d4ed8");
+  const g=ctx.createLinearGradient(player.x,player.y-30,player.x,player.y+30);
+  g.addColorStop(0,"#e0f2fe");
+  g.addColorStop(.5,"#38bdf8");
+  g.addColorStop(1,"#1d4ed8");
   ctx.fillStyle=g;
 
   ctx.beginPath();
@@ -599,18 +623,52 @@ function drawPlayer(){
   ctx.shadowBlur=0;
   ctx.globalAlpha=1;
 
+  ctx.strokeStyle="#0ea5e9";
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(player.x-10,player.y+10);
+  ctx.lineTo(player.x-25,player.y+25);
+  ctx.moveTo(player.x+10,player.y+10);
+  ctx.lineTo(player.x+25,player.y+25);
+  ctx.stroke();
+
+  ctx.strokeStyle="rgba(224,242,254,.85)";
+  ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.moveTo(player.x,player.y-25);
+  ctx.lineTo(player.x,player.y+20);
+  ctx.moveTo(player.x-13,player.y+2);
+  ctx.lineTo(player.x+13,player.y+2);
+  ctx.stroke();
+
   ctx.fillStyle="#e0f2fe";
   ctx.beginPath();
   ctx.ellipse(player.x,player.y-11,6,13,0,0,Math.PI*2);
   ctx.fill();
 
-  ctx.fillStyle="#facc15";
+  const t=now*.02;
+  const flame=18+Math.sin(t)*6;
+  const flicker=Math.sin(t*1.7)*2;
+
+  ctx.shadowBlur=18;
+  ctx.shadowColor="#f97316";
+  ctx.fillStyle="#f97316";
   ctx.beginPath();
-  ctx.moveTo(player.x,player.y+43);
-  ctx.lineTo(player.x+8,player.y+24);
-  ctx.lineTo(player.x-8,player.y+24);
+  ctx.moveTo(player.x,player.y+40+flicker);
+  ctx.lineTo(player.x+6,player.y+20);
+  ctx.lineTo(player.x-6,player.y+20);
   ctx.closePath();
   ctx.fill();
+
+  ctx.shadowColor="#facc15";
+  ctx.fillStyle="#facc15";
+  ctx.beginPath();
+  ctx.moveTo(player.x,player.y+40+flame);
+  ctx.lineTo(player.x+4,player.y+24);
+  ctx.lineTo(player.x-4,player.y+24);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur=0;
 
   if(invincible){
     ctx.strokeStyle="#facc15";
@@ -745,7 +803,7 @@ function drawItem(it){
   ctx.font="bold 12px sans-serif";
   ctx.textAlign="center";
   ctx.textBaseline="middle";
-  ctx.fillText(it.type==="invincible"?"★":it.type==="shot3"?"3":"2",0,1);
+  ctx.fillText(it.type==="invincible"?"*":it.type==="shot3"?"3":"2",0,1);
   ctx.restore();
 }
 
@@ -819,6 +877,7 @@ function draw(){
     ctx.globalAlpha=1;
   });
 
+  if(state==="play")drawTrail();
   if(state==="play")drawPlayer();
   drawBossHP();
   ctx.restore();
