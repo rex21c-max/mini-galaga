@@ -311,11 +311,12 @@ function spawnEnemy(){
   }
 
   const hp=type==="follow"?2:1;
+  const size=type==="normal"?{w:30,h:25}:{w:42,h:36};
   enemies.push({
     x:30+Math.random()*(W-60),
     y:-40,
-    w:42,
-    h:36,
+    w:size.w,
+    h:size.h,
     s:(2.2+Math.random()*1.7)*enemySpeed,
     type,
     hp,
@@ -1312,6 +1313,11 @@ function drawStageMinion(e){
     e.hitFlash--;
   }
 
+  ctx.save();
+  ctx.translate(e.x,e.y);
+  ctx.scale(.7,.7);
+  ctx.translate(-e.x,-e.y);
+
   if(stage===0){
     ctx.shadowBlur=18;
     ctx.shadowColor="#a78bfa";
@@ -1511,6 +1517,7 @@ function drawStageMinion(e){
     ctx.fill();
   }
 
+  ctx.restore();
   ctx.globalAlpha=1;
 }
 
