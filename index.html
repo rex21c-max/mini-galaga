@@ -578,6 +578,19 @@ function hit(a,b){
          a.y+a.h/2>b.y-b.h/2;
 }
 
+function roundedRectPath(x,y,w,h,r){
+  const radius=Math.min(r,w/2,h/2);
+  ctx.moveTo(x+radius,y);
+  ctx.lineTo(x+w-radius,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+radius);
+  ctx.lineTo(x+w,y+h-radius);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-radius,y+h);
+  ctx.lineTo(x+radius,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-radius);
+  ctx.lineTo(x,y+radius);
+  ctx.quadraticCurveTo(x,y,x+radius,y);
+}
+
 function playerDamage(t){
   const invincible=t<invincibleUntil || t<playerHitInvincibleUntil;
   if(invincible)return;
@@ -1798,7 +1811,7 @@ function drawItem(it){
     ctx.strokeStyle=color;
     ctx.lineWidth=3;
     ctx.beginPath();
-    ctx.roundRect(-18,-15,36,30,14);
+    roundedRectPath(-18,-15,36,30,14);
     ctx.fill();
     ctx.stroke();
 
