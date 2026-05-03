@@ -207,7 +207,7 @@ function startMusic(){
 }
 
 function shoot(t){
-  const delay=weaponMode==="bomb"?360:weaponMode==="spread"?260:210;
+  const delay=weaponMode==="bomb"?240:weaponMode==="spread"?260:210;
   if(t-lastShot<delay)return;
 
   if(weaponMode==="spread"){
@@ -235,8 +235,8 @@ function shoot(t){
       w:13,
       h:20,
       vx:0,
-      vy:-6.6,
-      s:6.6,
+      vy:-8.0,
+      s:8.0,
       type:"bomb",
       damage:3,
       blast:62
@@ -319,7 +319,7 @@ function spawnBoss(){
   bossRage=false;
   shockwaves.push({x:W/2,y:H*.28,born:performance.now(),duration:2000});
 
-  const bossHp=[10,13,15,17][bgIndex]||15;
+  const bossHp=[20,26,30,34][bgIndex]||30;
   enemies.push({
     x:W/2,
     y:-120,
@@ -576,7 +576,7 @@ function update(t){
   update.enemyTimer++;
   let gap=Math.max(16,36-Math.floor(score/100));
   gap=gap/phase.spawn;
-  if(hasBoss())gap*=4;
+  if(hasBoss())gap*=10;
 
   if(update.enemyTimer>gap){
     spawnEnemy();
@@ -665,7 +665,7 @@ function update(t){
       const it=items[i];
       if(it.sealed)continue;
       if(it.type==="shot2"){
-        shotLevel=Math.max(shotLevel,2);
+        shotLevel=2;
         weaponMode="normal";
       }
       if(it.type==="shot3"){
