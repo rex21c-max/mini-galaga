@@ -13,6 +13,8 @@ canvas{display:block;background:#020617;}
 #title p{color:white;font-size:18px;animation:blink 1s infinite}
 #warning{position:fixed;top:32%;left:0;right:0;text-align:center;color:#facc15;font:42px sans-serif;font-weight:bold;text-shadow:0 0 18px #ef4444;z-index:4;display:none}
 #msg{position:fixed;top:42%;left:0;right:0;text-align:center;color:white;font:26px sans-serif;text-shadow:0 0 12px #60a5fa;z-index:5;display:none}
+#msg button{margin:14px 7px 0;padding:11px 18px;border:1px solid #7dd3fc;background:rgba(15,23,42,.9);color:#e0f2fe;font:bold 14px sans-serif;box-shadow:0 0 14px rgba(56,189,248,.55);cursor:pointer}
+#msg button:active{transform:translateY(1px);background:#0f172a}
 @keyframes blink{0%{opacity:1}50%{opacity:.3}100%{opacity:1}}
 @keyframes float{0%{transform:translateY(0)}50%{transform:translateY(-10px)}100%{transform:translateY(0)}}
 </style>
@@ -65,6 +67,9 @@ let damageFlash=0;
 let playerHitInvincibleUntil=0;
 let bossIntro=0;
 let bossRage=false;
+let bossClearUntil=0;
+let clearBanner=null;
+let bossEntrance=null;
 
 const START_ENEMY_SPEED=.9;
 const MAX_ENEMY_SPEED=2.6;
@@ -108,6 +113,9 @@ function resetVars(){
   playerHitInvincibleUntil=0;
   bossIntro=0;
   bossRage=false;
+  bossClearUntil=0;
+  clearBanner=null;
+  bossEntrance=null;
   hitStopUntil=0;
   damageFlash=0;
   bgIndex=0;
@@ -143,8 +151,26 @@ function gameOver(){
     localStorage.setItem("miniGalaxiaBest",String(best));
   }
   updateUI();
-  msg.innerHTML="GAME OVER<br><small>Score: "+score+" / Best: "+best+"<br>Touch to restart</small>";
+  msg.innerHTML=
+    "GAME OVER<br><small>Score: "+score+" / Best: "+best+"</small><br>"+
+    "<button data-action=\"restart\">RESTART</button>"+
+    "<button data-action=\"continue\">CONTINUE</button>";
   msg.style.display="block";
+}
+
+function continueGame(){
+  life=1;
+  state="play";
+  msg.style.display="none";
+  player={x:W/2,y:H-80,w:38,h:48};
+  enemyBullets=[];
+  enemies=enemies.filter(e=>e.type==="boss"||e.type==="midboss");
+  invincibleUntil=performance.now()+3500;
+  playerHitInvincibleUntil=performance.now()+3500;
+  bossClearUntil=performance.now()+1800;
+  update.enemyTimer=0;
+  damageFlash=0;
+  updateUI();
 }
 
 function showWarning(text){
@@ -315,9 +341,11 @@ function spawnMidBoss(){
 
 function spawnBoss(){
   showWarning(BOSS_NAMES[bgIndex]);
-  bossIntro=performance.now()+2000;
+  const now=performance.now();
+  bossIntro=now+2000;
+  bossEntrance={stage:bgIndex,born:now,until:now+4200};
   bossRage=false;
-  shockwaves.push({x:W/2,y:H*.28,born:performance.now(),duration:2000});
+  shockwaves.push({x:W/2,y:H*.28,born:now,duration:2000});
 
   const bossHp=[20,26,30,34][bgIndex]||30;
   enemies.push({
@@ -506,6 +534,9 @@ function defeatEnemy(e,t){
     boom(e.x,e.y,true);
     shake=40;
     hitStopUntil=t+300;
+    bossClearUntil=t+2000;
+    enemyBullets=[];
+    update.enemyTimer=0;
     bossRage=false;
     shockwaves.push({x:e.x,y:e.y,born:performance.now(),duration:900});
     shockwaves.push({x:e.x-48,y:e.y+8,born:performance.now()+80,duration:760});
@@ -529,6 +560,11 @@ function defeatEnemy(e,t){
     if(Math.random()<.6)dropItem(e.x+18,e.y,"invincible");
     life=Math.min(life+1,5);
     bgIndex=(bgIndex+1)%BG_NAMES.length;
+    clearBanner={
+      until:t+2200,
+      boss:e.name||BOSS_NAMES[e.stage]||"BOSS",
+      next:BG_NAMES[bgIndex]
+    };
   }else{
     score+=10;
   }
@@ -578,7 +614,7 @@ function update(t){
   gap=gap/phase.spawn;
   if(hasBoss())gap*=10;
 
-  if(update.enemyTimer>gap){
+  if(t>=bossClearUntil && update.enemyTimer>gap){
     spawnEnemy();
     update.enemyTimer=0;
   }
@@ -1457,6 +1493,134 @@ function drawShockwaves(){
   });
 }
 
+function drawBossEntranceEffect(){
+  if(!bossEntrance)return;
+
+  const now=performance.now();
+  if(now>bossEntrance.until){
+    bossEntrance=null;
+    return;
+  }
+
+  const boss=enemies.find(e=>e.type==="boss");
+  const x=boss?boss.x:W/2;
+  const y=boss&&boss.y>-45?boss.y:H*.26;
+  const age=(now-bossEntrance.born)/1000;
+  const fade=Math.min(1,(bossEntrance.until-now)/900);
+  const stage=bossEntrance.stage;
+
+  ctx.save();
+  ctx.globalAlpha=fade;
+
+  if(stage===0){
+    ctx.strokeStyle="#c4b5fd";
+    ctx.fillStyle="#fef08a";
+    ctx.shadowBlur=18;
+    ctx.shadowColor="#a78bfa";
+    for(let i=0;i<22;i++){
+      const a=i*.9+age*5;
+      const r=42+(i%5)*12+Math.sin(age*4+i)*10;
+      const px=x+Math.cos(a)*r;
+      const py=y+Math.sin(a*.8)*r*.55;
+      ctx.beginPath();
+      ctx.moveTo(px-5,py);
+      ctx.lineTo(px+5,py);
+      ctx.moveTo(px,py-5);
+      ctx.lineTo(px,py+5);
+      ctx.stroke();
+      if(i%4===0){
+        ctx.beginPath();
+        ctx.arc(px,py,2.5,0,Math.PI*2);
+        ctx.fill();
+      }
+    }
+  }else if(stage===1||stage===2){
+    const cloudColor=stage===1?"rgba(126,34,206,.34)":"rgba(107,114,128,.38)";
+    const glowColor=stage===1?"#c084fc":"#cbd5e1";
+    ctx.shadowBlur=24;
+    ctx.shadowColor=glowColor;
+    for(let i=0;i<18;i++){
+      const a=i*Math.PI*2/18+age*.65;
+      const r=40+(i%4)*13+Math.sin(age*2+i)*7;
+      const px=x+Math.cos(a)*r;
+      const py=y+Math.sin(a)*r*.5;
+      ctx.fillStyle=cloudColor;
+      ctx.beginPath();
+      ctx.ellipse(px,py,25+(i%3)*8,14+(i%2)*7,age*.2+a,0,Math.PI*2);
+      ctx.fill();
+    }
+    if(stage===2){
+      ctx.strokeStyle="#fef08a";
+      ctx.lineWidth=3;
+      for(let i=-1;i<=1;i++){
+        const bx=x+i*34+Math.sin(age*8+i)*10;
+        ctx.beginPath();
+        ctx.moveTo(bx,y-42);
+        ctx.lineTo(bx+10,y-16);
+        ctx.lineTo(bx-5,y+10);
+        ctx.lineTo(bx+13,y+36);
+        ctx.stroke();
+      }
+    }
+  }else{
+    ctx.strokeStyle="rgba(254,215,170,.65)";
+    ctx.fillStyle="rgba(251,146,60,.28)";
+    ctx.shadowBlur=18;
+    ctx.shadowColor="#fb923c";
+    for(let i=0;i<28;i++){
+      const a=i*.55+age*5.2;
+      const r=22+i*3.8;
+      const px=x+Math.cos(a)*r;
+      const py=y+Math.sin(a)*r*.38+i*.4;
+      ctx.beginPath();
+      ctx.arc(px,py,3+(i%4),0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.lineWidth=5;
+    for(let i=0;i<3;i++){
+      ctx.beginPath();
+      ctx.ellipse(x,y+8,54+i*18,22+i*8,age*1.2+i,0,Math.PI*2);
+      ctx.stroke();
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawClearBanner(){
+  if(!clearBanner||performance.now()>clearBanner.until)return;
+
+  const remain=clearBanner.until-performance.now();
+  const fade=Math.min(1,remain/450);
+  const y=H*.36;
+
+  ctx.save();
+  ctx.globalAlpha=fade;
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+
+  ctx.fillStyle="rgba(2,6,23,.46)";
+  ctx.fillRect(0,y-70,W,150);
+
+  ctx.shadowBlur=26;
+  ctx.shadowColor="#facc15";
+  ctx.fillStyle="#fef08a";
+  ctx.font="bold 42px sans-serif";
+  ctx.fillText("STAGE CLEAR",W/2,y-22);
+
+  ctx.shadowBlur=14;
+  ctx.shadowColor="#38bdf8";
+  ctx.fillStyle="#e0f2fe";
+  ctx.font="bold 17px sans-serif";
+  ctx.fillText(clearBanner.boss+" DESTROYED",W/2,y+24);
+
+  ctx.shadowBlur=0;
+  ctx.fillStyle="#bae6fd";
+  ctx.font="14px sans-serif";
+  ctx.fillText("NEXT: "+clearBanner.next,W/2,y+52);
+  ctx.restore();
+}
+
 function dangerEffect(){
   if(state!=="play")return;
   let danger=false;
@@ -1488,6 +1652,7 @@ function draw(){
     ctx.fillRect(0,0,W,H);
   }
   drawShockwaves();
+  drawBossEntranceEffect();
 
   bullets.forEach(b=>{
     ctx.shadowBlur=10;
@@ -1530,6 +1695,7 @@ function draw(){
   if(state==="play")drawTrail();
   if(state==="play")drawPlayer();
   drawBossHP();
+  drawClearBanner();
   ctx.restore();
 
   dangerEffect();
@@ -1553,8 +1719,10 @@ function handleTouch(e){
   unlockAudio();
   const touch=e.touches[0];
 
-  if(state!=="play"){
+  if(state==="ready"){
     startGame();
+  }else if(state==="over"){
+    return;
   }
 
   movePlayer(touch.clientX,touch.clientY);
@@ -1565,7 +1733,8 @@ canvas.addEventListener("touchmove",handleTouch,{passive:false});
 
 canvas.addEventListener("mousedown",e=>{
   unlockAudio();
-  if(state!=="play")startGame();
+  if(state==="ready")startGame();
+  if(state==="over")return;
   movePlayer(e.clientX,e.clientY);
 });
 
@@ -1582,6 +1751,14 @@ title.addEventListener("touchstart",e=>{
 title.addEventListener("click",()=>{
   unlockAudio();
   startGame();
+});
+
+msg.addEventListener("click",e=>{
+  const action=e.target.dataset.action;
+  if(!action)return;
+  unlockAudio();
+  if(action==="restart")startGame();
+  if(action==="continue")continueGame();
 });
 
 resetVars();
