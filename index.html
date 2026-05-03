@@ -70,7 +70,6 @@ let bossRage=false;
 let bossClearUntil=0;
 let clearBanner=null;
 let bossEntrance=null;
-let rewardChoiceId=0;
 
 const START_ENEMY_SPEED=.9;
 const MAX_ENEMY_SPEED=2.6;
@@ -117,7 +116,6 @@ function resetVars(){
   bossClearUntil=0;
   clearBanner=null;
   bossEntrance=null;
-  rewardChoiceId=0;
   hitStopUntil=0;
   damageFlash=0;
   bgIndex=0;
@@ -459,8 +457,7 @@ function dropItem(x,y,type,opts={}){
     s:opts.s!==undefined?opts.s:1.8,
     type,
     sealed:true,
-    openFlash:0,
-    choiceGroup:opts.choiceGroup||null
+    openFlash:0
   });
 }
 
@@ -515,25 +512,14 @@ function randomWeaponItem(){
   return pool[Math.floor(Math.random()*pool.length)];
 }
 
-function stageRewardChoices(){
+function stageRewardItem(){
+  if(shotLevel<3)return "shot3";
   const pool=["down","shot2","shot3","spread","bomb","invincible"];
-  const choices=[];
-  if(shotLevel<3)choices.push("shot3");
-
-  while(choices.length<3){
-    const type=pool[Math.floor(Math.random()*pool.length)];
-    if(!choices.includes(type))choices.push(type);
-  }
-  return choices;
+  return pool[Math.floor(Math.random()*pool.length)];
 }
 
-function spawnStageRewardCapsules(){
-  const group="reward-"+(++rewardChoiceId);
-  const choices=stageRewardChoices();
-  const xs=[W*.28,W*.5,W*.72];
-  choices.forEach((type,i)=>{
-    dropItem(xs[i],H*.24,type,{choiceGroup:group,s:.55});
-  });
+function spawnStageRewardCapsule(){
+  dropItem(W*.5,H*.24,stageRewardItem(),{s:.7});
 }
 
 function midBossDropType(stage){
@@ -545,9 +531,6 @@ function midBossDropType(stage){
 
 function openCapsule(it){
   if(!it.sealed)return;
-  if(it.choiceGroup){
-    items=items.filter(other=>other===it||other.choiceGroup!==it.choiceGroup);
-  }
   it.sealed=false;
   it.w=28;
   it.h=28;
@@ -635,7 +618,7 @@ function defeatEnemy(e,t){
     dropItem(e.x,e.y,midBossDropType(e.stage||0));
   }else if(e.type==="boss"){
     score+=120;
-    spawnStageRewardCapsules();
+    spawnStageRewardCapsule();
     life=Math.min(life+1,5);
     bgIndex=(bgIndex+1)%BG_NAMES.length;
     clearBanner={
@@ -2066,20 +2049,6 @@ function drawClearBanner(){
   ctx.restore();
 }
 
-function drawRewardChoiceHint(){
-  if(!items.some(it=>it.choiceGroup&&it.sealed))return;
-
-  ctx.save();
-  ctx.textAlign="center";
-  ctx.textBaseline="middle";
-  ctx.shadowBlur=14;
-  ctx.shadowColor="#38bdf8";
-  ctx.fillStyle="#e0f2fe";
-  ctx.font="bold 16px sans-serif";
-  ctx.fillText("CHOOSE ONE CAPSULE",W/2,H*.17);
-  ctx.restore();
-}
-
 function dangerEffect(){
   if(state!=="play")return;
   let danger=false;
@@ -2155,7 +2124,6 @@ function draw(){
   if(state==="play")drawPlayer();
   drawBossHP();
   drawClearBanner();
-  drawRewardChoiceHint();
   ctx.restore();
 
   dangerEffect();
