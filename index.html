@@ -522,7 +522,6 @@ function defeatEnemy(e,t){
     score+=50;
     spawnMidBossMinions(e);
     dropItem(e.x,e.y,"shot2");
-    bgIndex=(bgIndex+1)%BG_NAMES.length;
   }else if(e.type==="boss"){
     score+=120;
     if(shotLevel<3)dropItem(e.x-18,e.y,"shot3");
