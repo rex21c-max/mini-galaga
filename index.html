@@ -12,6 +12,8 @@ canvas{display:block;background:#020617;}
 #title h1{font-size:46px;color:#38bdf8;text-shadow:0 0 20px #38bdf8;animation:float 2s infinite}
 #title p{color:white;font-size:18px;animation:blink 1s infinite}
 #warning{position:fixed;top:32%;left:0;right:0;text-align:center;color:#facc15;font:42px sans-serif;font-weight:bold;text-shadow:0 0 18px #ef4444;z-index:4;display:none}
+#story{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);max-width:min(86vw,520px);padding:8px 12px;border:1px solid rgba(125,211,252,.45);background:rgba(2,6,23,.66);color:#bae6fd;font:12px sans-serif;line-height:1.35;text-align:center;text-shadow:0 0 8px #38bdf8;box-shadow:0 0 16px rgba(56,189,248,.2);z-index:3;display:none}
+#story b{color:#facc15}
 #msg{position:fixed;top:42%;left:0;right:0;text-align:center;color:white;font:26px sans-serif;text-shadow:0 0 12px #60a5fa;z-index:5;display:none}
 #msg button{margin:14px 7px 0;padding:11px 18px;border:1px solid #7dd3fc;background:rgba(15,23,42,.9);color:#e0f2fe;font:bold 14px sans-serif;box-shadow:0 0 14px rgba(56,189,248,.55);cursor:pointer}
 #msg button:active{transform:translateY(1px);background:#0f172a}
@@ -34,6 +36,7 @@ Shot: <span id="shot">1</span>
 </div>
 
 <div id="warning">WARNING</div>
+<div id="story"></div>
 <div id="msg"></div>
 <canvas id="game"></canvas>
 
@@ -42,6 +45,7 @@ const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 const title=document.getElementById("title");
 const warningEl=document.getElementById("warning");
+const storyEl=document.getElementById("story");
 const msg=document.getElementById("msg");
 const scoreEl=document.getElementById("score");
 const lifeEl=document.getElementById("life");
@@ -49,13 +53,14 @@ const bestEl=document.getElementById("best");
 const shotEl=document.getElementById("shot");
 
 let W,H;
-let player,bullets,enemies,enemyBullets,items,booms,stars,trail,shockwaves;
+let player,bullets,enemies,enemyBullets,items,booms,stars,trail,shockwaves,miniDrones;
 let score,life,best,shotLevel,state,startTime,enemySpeed,nextBossAt,bossCount,lastShot,lastDifficultyAt,invincibleUntil;
 let weaponMode="normal";
 let shake=0;
 let bgIndex=0;
 let stageIndex=0;
 let stagePhase=0;
+let threatLevel=1;
 
 let difficultyPhase=0;
 let phaseStartTime=0;
@@ -84,7 +89,11 @@ const STAGES=[
     earth:"City",
     minionStage:0,
     bossStage:0,
-    boss:"VOID CARRIER"
+    boss:"INFECTED BEHEMOTH",
+    intro:"Infected alien signals are mutating life across the colonies.",
+    mid:"MID BOSS: Infected Meteor. The outbreak has reached Earth.",
+    bossLog:"A half-organic, half-machine beast blocks the city.",
+    clear:"Viral spread contained."
   },
   {
     title:"Drone Skyfall",
@@ -93,7 +102,11 @@ const STAGES=[
     earth:"Earth Sky",
     minionStage:2,
     bossStage:2,
-    boss:"STORM FORTRESS"
+    boss:"STORM FORTRESS",
+    intro:"CORE has seized human AI systems.",
+    mid:"MID BOSS: Recon Carrier. Humanity's technology has turned hostile.",
+    bossLog:"Storm Fortress is the infected command node.",
+    clear:"AI rebellion signal severed."
   },
   {
     title:"Moonlit Maw",
@@ -102,16 +115,24 @@ const STAGES=[
     earth:"Night Sky",
     minionStage:1,
     bossStage:1,
-    boss:"LUNAR MAW"
+    boss:"LUNAR MAW",
+    intro:"Something buried deep inside the Moon has awakened.",
+    mid:"MID BOSS: Lunar Fragment. This is no ordinary virus.",
+    bossLog:"Lunar Maw opens above Earth's night sky.",
+    clear:"The Moon anomaly is silent."
   },
   {
-    title:"Solar Scorpion",
-    warning:"SOLAR SCORPION",
+    title:"Solar Centipede",
+    warning:"SOLAR CENTIPEDE",
     from:"Solar Zone",
     earth:"Desert",
     minionStage:3,
     bossStage:3,
-    boss:"DUNE SCORPION"
+    boss:"DUNE CENTIPEDE",
+    intro:"CORE's true experiment was born near the Sun.",
+    mid:"MID BOSS: Sand Alpha Centipede. The swarm has a commander.",
+    bossLog:"This is not a monster. It is a weapon.",
+    clear:"CORE's final evolution has fallen."
   }
 ];
 const BOSS_NAMES=STAGES.map(s=>s.boss);
@@ -140,6 +161,7 @@ function resetVars(){
   booms=[];
   trail=[];
   shockwaves=[];
+  miniDrones=[];
   score=0;
   life=3;
   shotLevel=1;
@@ -161,6 +183,7 @@ function resetVars(){
   bgIndex=0;
   stageIndex=0;
   stagePhase=0;
+  threatLevel=1;
   difficultyPhase=0;
   phaseStartTime=0;
   musicMode=0;
@@ -174,7 +197,8 @@ function updateUI(){
   scoreEl.textContent=score;
   lifeEl.textContent=life;
   bestEl.textContent=best;
-  shotEl.textContent=weaponMode==="normal"?shotLevel:weaponMode.toUpperCase();
+  const shotText=weaponMode==="normal"?shotLevel:weaponMode.toUpperCase();
+  shotEl.textContent=shotText+" / T"+threatLevel;
 }
 
 function startGame(){
@@ -184,6 +208,7 @@ function startGame(){
   title.style.display="none";
   msg.style.display="none";
   showWarning(currentStage().warning);
+  showStory("Pilot MINI GALAXIA: break through infected zones and eliminate CORE.",3600);
   startMusic();
 }
 
@@ -221,6 +246,17 @@ function showWarning(text){
   warningEl.style.display="block";
   shake=16;
   setTimeout(()=>warningEl.style.display="none",1100);
+}
+
+function showStory(text,duration=2800){
+  if(!text)return;
+  storyEl.innerHTML="<b>MISSION LOG</b> / "+text;
+  storyEl.style.display="block";
+  const hideAt=performance.now()+duration;
+  storyEl.dataset.hideAt=String(hideAt);
+  setTimeout(()=>{
+    if(Number(storyEl.dataset.hideAt)<=hideAt)storyEl.style.display="none";
+  },duration);
 }
 
 function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
@@ -351,6 +387,16 @@ function currentBossStage(){
   return currentStage().bossStage;
 }
 
+function isStageOneOpening(){
+  return stageIndex===0 && stagePhase===0 && bossCount===0;
+}
+
+function addMiniDrone(){
+  if(!miniDrones)miniDrones=[];
+  if(miniDrones.length>=1)return;
+  miniDrones.push({x:player.x-42,y:player.y+8,w:24,h:20,angle:0});
+}
+
 function getPhasePower(){
   if(difficultyPhase===0)return {spawn:.6,speed:.8};
   if(difficultyPhase===1)return {spawn:1.52,speed:1.3};
@@ -369,7 +415,11 @@ function spawnEnemy(){
   const roll=Math.random();
 
   if(stageIndex===0){
-    if(roll<.176)type="split";
+    if(isStageOneOpening()){
+      if(roll<.08)type="split";
+      else if(roll<.14)type="follow";
+      speedMul=.78;
+    }else if(roll<.176)type="split";
     else if(roll<.356)type="follow";
     if(type==="follow"){hp=2;size={w:38,h:32};}
     else if(type==="split"){size={w:42,h:36};}
@@ -406,6 +456,7 @@ function spawnEnemy(){
 
 function spawnMidBoss(){
   showWarning("MID BOSS");
+  showStory(currentStage().mid);
   const bossStage=currentBossStage();
   const midBossHp=5+stageIndex*2;
   enemies.push({
@@ -429,13 +480,14 @@ function spawnBoss(){
   const stage=currentStage();
   const bossStage=currentBossStage();
   showWarning(stage.boss);
+  showStory(stage.bossLog);
   const now=performance.now();
   bossIntro=now+2000;
   bossEntrance={stage:bossStage,born:now,until:now+4200};
   bossRage=false;
   shockwaves.push({x:W/2,y:H*.28,born:now,duration:2000});
 
-  const bossHp=[20,30,26,34][stageIndex]||30;
+  const bossHp=Math.floor(([20,30,26,34][stageIndex]||30)*(1+(threatLevel-1)*.12));
   enemies.push({
     x:W/2,
     y:-120,
@@ -660,6 +712,15 @@ function playerDamage(t){
   const invincible=t<invincibleUntil || t<playerHitInvincibleUntil;
   if(invincible)return;
 
+  if(isStageOneOpening()&&life<=1){
+    shake=16;
+    damageFlash=.7;
+    hitStopUntil=t+90;
+    playerHitInvincibleUntil=t+1800;
+    updateUI();
+    return;
+  }
+
   life--;
   shake=22;
   damageFlash=1;
@@ -706,12 +767,19 @@ function defeatEnemy(e,t){
     };
     bossClearUntil=t+1800;
     showWarning("EARTH DEFENSE");
+    showStory("Earth defense phase: protect "+currentAreaName()+".",2600);
   }else if(e.type==="boss"){
     const clearedStage=currentStage();
+    const clearedIndex=stageIndex;
     score+=120;
     spawnStageRewardCapsule();
     life=Math.min(life+1,5);
     stageIndex=(stageIndex+1)%STAGES.length;
+    if(clearedIndex===STAGES.length-1){
+      threatLevel++;
+      addMiniDrone();
+      showWarning("THREAT LEVEL "+threatLevel);
+    }
     stagePhase=0;
     bgIndex=currentMinionStage();
     clearBanner={
@@ -719,6 +787,11 @@ function defeatEnemy(e,t){
       boss:clearedStage.title,
       next:currentStage().title
     };
+    if(clearedIndex===STAGES.length-1){
+      showStory("CORE has adapted. Threat Level "+threatLevel+" begins. MINI GALAXIA deploys a guard drone.",4200);
+    }else{
+      showStory(clearedStage.clear+" Next target: "+currentStage().title+". "+currentStage().intro,3600);
+    }
   }else{
     score+=10;
   }
@@ -764,8 +837,13 @@ function update(t){
   shoot(t);
 
   update.enemyTimer++;
+  const stageOneOpening=isStageOneOpening();
+  const threatBoost=1+(threatLevel-1)*.08;
+  const spawnPower=(stageOneOpening?phase.spawn*.62:phase.spawn)*threatBoost;
+  const speedPower=(stageOneOpening?phase.speed*.78:phase.speed)*(1+(threatLevel-1)*.05);
   let gap=Math.max(16,36-Math.floor(score/100));
-  gap=gap/phase.spawn;
+  gap=gap/spawnPower;
+  if(stageOneOpening)gap=Math.max(gap,42);
   if(hasBoss())gap*=10;
 
   if(t>=bossClearUntil && update.enemyTimer>gap){
@@ -778,6 +856,15 @@ function update(t){
     b.y+=b.vy!==undefined?b.vy:-(b.s||9);
   });
   bullets=bullets.filter(b=>b.y>-30&&b.x>-40&&b.x<W+40);
+
+  miniDrones.forEach((d,i)=>{
+    const slot=i%2===0?-1:1;
+    const targetX=player.x+slot*42+Math.sin(t/260+i)*8;
+    const targetY=player.y+8+Math.cos(t/300+i)*6;
+    d.x+=(targetX-d.x)*.14;
+    d.y+=(targetY-d.y)*.14;
+    d.angle+=.12;
+  });
 
   enemyBullets.forEach(b=>{
     b.x+=b.vx;
@@ -808,38 +895,38 @@ function update(t){
       bossShoot(e,t);
     }else if(e.type==="midboss"){
       if(e.stage===0){
-        e.y+=e.s*phase.speed;
+        e.y+=e.s*speedPower;
         e.x+=Math.sin(e.angle)*1.8;
         e.angle+=.075;
       }else if(e.stage===1){
-        e.y+=e.s*.78*phase.speed;
+        e.y+=e.s*.78*speedPower;
         e.x+=Math.sin(e.angle)*.9;
         e.angle+=.045;
       }else if(e.stage===2){
-        e.y+=e.s*.95*phase.speed;
+        e.y+=e.s*.95*speedPower;
         e.x+=e.vx;
         if(e.x<50||e.x>W-50)e.vx*=-1;
       }else{
-        e.y+=e.s*1.22*phase.speed;
+        e.y+=e.s*1.22*speedPower;
         e.x+=e.vx+Math.sin(e.angle)*1.4;
         e.angle+=.12;
         if(e.x<42||e.x>W-42)e.vx*=-1;
       }
       midBossShoot(e,t);
     }else if(e.type==="curve"){
-      e.y+=e.s*phase.speed;
+      e.y+=e.s*speedPower;
       e.x+=Math.sin(e.angle)*3;
       e.angle+=0.1;
     }else if(e.type==="follow"){
-      e.y+=e.enraged?3.0:e.s*phase.speed;
+      e.y+=e.enraged?3.0:e.s*speedPower;
       e.x+=(player.x-e.x)*(e.enraged?.09:.02);
     }else if(e.type==="split"){
-      e.y+=e.s*phase.speed;
+      e.y+=e.s*speedPower;
       e.x+=e.vx||0;
       e.vx*=.985;
       if(e.x<24||e.x>W-24)e.vx*=-1;
     }else{
-      e.y+=e.s*phase.speed;
+      e.y+=e.s*speedPower;
       if(e.variant==="zigzag"){
         e.x+=Math.sin(e.angle)*3.2;
         e.angle+=.11;
@@ -883,6 +970,19 @@ function update(t){
   }
 
   for(let i=enemyBullets.length-1;i>=0;i--){
+    let blocked=false;
+    for(let d=miniDrones.length-1;d>=0;d--){
+      if(hit(miniDrones[d],enemyBullets[i])){
+        boom(miniDrones[d].x,miniDrones[d].y,false);
+        shockwaves.push({x:miniDrones[d].x,y:miniDrones[d].y,born:performance.now(),duration:320});
+        miniDrones.splice(d,1);
+        enemyBullets.splice(i,1);
+        shake=10;
+        blocked=true;
+        break;
+      }
+    }
+    if(blocked)continue;
     if(hit(player,enemyBullets[i])){
       enemyBullets.splice(i,1);
       playerDamage(t);
@@ -921,6 +1021,24 @@ function update(t){
   for(let i=enemies.length-1;i>=0;i--){
     const e=enemies[i];
 
+    let droneBlocked=false;
+    for(let d=miniDrones.length-1;d>=0;d--){
+      if(hit(miniDrones[d],e)){
+        boom(miniDrones[d].x,miniDrones[d].y,false);
+        shockwaves.push({x:miniDrones[d].x,y:miniDrones[d].y,born:performance.now(),duration:320});
+        miniDrones.splice(d,1);
+        e.hp-=1;
+        e.hitFlash=6;
+        shake=12;
+        if(e.hp<=0){
+          defeatEnemy(e,t);
+          droneBlocked=true;
+        }
+        break;
+      }
+    }
+    if(droneBlocked)continue;
+
     if(hit(player,e)){
       enemies.splice(i,1);
       boom(e.x,e.y,e.type!=="normal");
@@ -930,6 +1048,11 @@ function update(t){
 
     if(e.y>H+50){
       enemies.splice(i,1);
+      if(isStageOneOpening()&&life<=1){
+        damageFlash=.35;
+        updateUI();
+        continue;
+      }
       life--;
       damageFlash=.6;
       updateUI();
@@ -1100,7 +1223,7 @@ function drawBackground(){
   ctx.fillRect(8,34,210,38);
   ctx.fillStyle="#e0f2fe";
   ctx.font="bold 12px sans-serif";
-  ctx.fillText("STAGE "+(stageIndex+1)+" - "+stage.title.toUpperCase(),16,50);
+  ctx.fillText("T"+threatLevel+" / STAGE "+(stageIndex+1)+" - "+stage.title.toUpperCase(),16,50);
   ctx.font="12px sans-serif";
   ctx.fillText("AREA: "+area.toUpperCase(),16,66);
 }
@@ -1306,6 +1429,47 @@ function drawPlayer(){
     ctx.arc(player.x,player.y,42,0,Math.PI*2);
     ctx.stroke();
   }
+}
+
+function drawMiniDrones(){
+  miniDrones.forEach(d=>{
+    ctx.save();
+    ctx.translate(d.x,d.y);
+    ctx.rotate(Math.sin(d.angle)*.18);
+    ctx.shadowBlur=18;
+    ctx.shadowColor="#22d3ee";
+
+    ctx.fillStyle="#0f172a";
+    ctx.beginPath();
+    ctx.ellipse(0,0,14,10,0,0,Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle="#38bdf8";
+    ctx.beginPath();
+    ctx.moveTo(-8,-7);
+    ctx.lineTo(-24,0);
+    ctx.lineTo(-8,7);
+    ctx.moveTo(8,-7);
+    ctx.lineTo(24,0);
+    ctx.lineTo(8,7);
+    ctx.fill();
+
+    ctx.fillStyle="#facc15";
+    ctx.beginPath();
+    ctx.arc(0,-1,5,0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle="#020617";
+    ctx.beginPath();
+    ctx.arc(0,-1,2,0,Math.PI*2);
+    ctx.fill();
+
+    ctx.strokeStyle="rgba(186,230,253,.85)";
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.arc(0,0,18,0,Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  });
 }
 
 function drawEnemy(e){
@@ -1771,12 +1935,14 @@ function drawStageMinion(e){
     if(variant==="weaver"){
       ctx.strokeStyle="#fed7aa";
       ctx.lineWidth=2;
-      ctx.beginPath();
-      ctx.moveTo(e.x-24,e.y-10);
-      ctx.quadraticCurveTo(e.x,e.y+16,e.x+24,e.y+42);
-      ctx.moveTo(e.x+24,e.y-10);
-      ctx.quadraticCurveTo(e.x,e.y+16,e.x-24,e.y+42);
-      ctx.stroke();
+      for(let i=0;i<5;i++){
+        const yy=e.y-20+i*11;
+        const bend=Math.sin(tick+i*.7)*4;
+        ctx.beginPath();
+        ctx.moveTo(e.x-13+bend,yy);
+        ctx.quadraticCurveTo(e.x+bend,yy+5,e.x+13+bend,yy);
+        ctx.stroke();
+      }
     }
 
     ctx.fillStyle="#f97316";
@@ -2562,6 +2728,7 @@ function draw(){
 
   if(state==="play")drawTrail();
   if(state==="play")drawPlayer();
+  if(state==="play")drawMiniDrones();
   drawBossHP();
   drawClearBanner();
   ctx.restore();
