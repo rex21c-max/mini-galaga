@@ -12,7 +12,7 @@ canvas{display:block;background:#020617;}
 #title h1{font-size:46px;color:#38bdf8;text-shadow:0 0 20px #38bdf8;animation:float 2s infinite}
 #title p{color:white;font-size:18px;animation:blink 1s infinite}
 #warning{position:fixed;top:32%;left:0;right:0;text-align:center;color:#facc15;font:42px sans-serif;font-weight:bold;text-shadow:0 0 18px #ef4444;z-index:4;display:none}
-#story{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);max-width:min(86vw,560px);padding:10px 14px;border:1px solid rgba(125,211,252,.5);background:rgba(2,6,23,.74);color:#bae6fd;font:14px sans-serif;line-height:1.38;text-align:center;text-shadow:0 0 8px #38bdf8;box-shadow:0 0 22px rgba(56,189,248,.25);z-index:6;display:none}
+#story{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);max-width:min(86vw,560px);padding:10px 14px;border:1px solid rgba(125,211,252,.5);background:rgba(2,6,23,.74);color:#bae6fd;font:14px sans-serif;line-height:1.38;text-align:center;text-shadow:0 0 8px #38bdf8;box-shadow:0 0 22px rgba(56,189,248,.25);z-index:6;display:none;cursor:pointer}
 #story b{color:#facc15}
 #msg{position:fixed;top:42%;left:0;right:0;text-align:center;color:white;font:26px sans-serif;text-shadow:0 0 12px #60a5fa;z-index:5;display:none}
 #msg button{margin:14px 7px 0;padding:11px 18px;border:1px solid #7dd3fc;background:rgba(15,23,42,.9);color:#e0f2fe;font:bold 14px sans-serif;box-shadow:0 0 14px rgba(56,189,248,.55);cursor:pointer}
@@ -79,6 +79,7 @@ let clearBanner=null;
 let bossEntrance=null;
 let lastAreaName=null;
 let areaFadeUntil=0;
+let storyPaused=false;
 
 const START_ENEMY_SPEED=.9;
 const MAX_ENEMY_SPEED=2.6;
@@ -182,6 +183,8 @@ function resetVars(){
   bossEntrance=null;
   lastAreaName=null;
   areaFadeUntil=0;
+  storyPaused=false;
+  storyEl.style.display="none";
   hitStopUntil=0;
   damageFlash=0;
   bgIndex=0;
@@ -251,15 +254,19 @@ function showWarning(text){
   setTimeout(()=>warningEl.style.display="none",1100);
 }
 
-function showStory(text,duration=2800){
+function showStory(text){
   if(!text)return;
-  storyEl.innerHTML="<b>MISSION LOG</b> / "+text;
+  storyPaused=true;
+  storyEl.innerHTML="<b>MISSION LOG</b> / "+text+"<br><small>TAP TO CONTINUE</small>";
   storyEl.style.display="block";
-  const hideAt=performance.now()+duration;
-  storyEl.dataset.hideAt=String(hideAt);
-  setTimeout(()=>{
-    if(Number(storyEl.dataset.hideAt)<=hideAt)storyEl.style.display="none";
-  },duration);
+}
+
+function resumeStory(){
+  if(!storyPaused)return;
+  storyPaused=false;
+  storyEl.style.display="none";
+  bossClearUntil=performance.now()+1000;
+  update.enemyTimer=0;
 }
 
 function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
@@ -459,6 +466,11 @@ function spawnEnemy(){
 
 function spawnMidBoss(){
   showWarning("MID BOSS");
+  bossIntro=0;
+  enemyBullets=[];
+  enemies=enemies.filter(e=>e.type==="midboss"||e.type==="boss");
+  update.enemyTimer=0;
+  bossClearUntil=performance.now()+900;
   const bossStage=currentBossStage();
   const midBossHp=5+stageIndex*2;
   enemies.push({
@@ -807,6 +819,7 @@ function defeatEnemy(e,t){
 
 function update(t){
   if(state!=="play")return;
+  if(storyPaused)return;
   if(t<hitStopUntil)return;
   if(performance.now()<bossIntro)return;
 
@@ -833,7 +846,7 @@ function update(t){
     lastDifficultyAt+=30000;
   }
 
-  while(elapsed>=nextBossAt){
+  if(elapsed>=nextBossAt && !hasBoss()){
     bossCount++;
     if(bossCount%2===1)spawnMidBoss();
     else spawnBoss();
@@ -3002,6 +3015,17 @@ msg.addEventListener("click",e=>{
   if(action==="restart")startGame();
   if(action==="continue")continueGame();
 });
+
+storyEl.addEventListener("click",()=>{
+  unlockAudio();
+  resumeStory();
+});
+
+storyEl.addEventListener("touchstart",e=>{
+  e.preventDefault();
+  unlockAudio();
+  resumeStory();
+},{passive:false});
 
 resetVars();
 state="ready";
