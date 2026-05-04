@@ -208,7 +208,6 @@ function startGame(){
   title.style.display="none";
   msg.style.display="none";
   showWarning(currentStage().warning);
-  showStory("Pilot MINI GALAXIA: break through infected zones and eliminate CORE.",3600);
   startMusic();
 }
 
@@ -456,7 +455,6 @@ function spawnEnemy(){
 
 function spawnMidBoss(){
   showWarning("MID BOSS");
-  showStory(currentStage().mid);
   const bossStage=currentBossStage();
   const midBossHp=5+stageIndex*2;
   enemies.push({
@@ -480,7 +478,6 @@ function spawnBoss(){
   const stage=currentStage();
   const bossStage=currentBossStage();
   showWarning(stage.boss);
-  showStory(stage.bossLog);
   const now=performance.now();
   bossIntro=now+2000;
   bossEntrance={stage:bossStage,born:now,until:now+4200};
@@ -756,18 +753,19 @@ function defeatEnemy(e,t){
     score+=15;
   }else if(e.type==="midboss"){
     score+=50;
-    spawnMidBossMinions(e);
     dropItem(e.x,e.y,midBossDropType(e.stage||0));
     stagePhase=1;
     bgIndex=currentMinionStage();
     clearBanner={
-      until:t+1800,
+      until:t+3000,
       boss:"MID BOSS",
       next:currentAreaName()
     };
-    bossClearUntil=t+1800;
+    bossClearUntil=t+3000;
+    enemyBullets=[];
+    enemies=enemies.filter(enemy=>enemy.type==="boss"||enemy.type==="midboss");
     showWarning("EARTH DEFENSE");
-    showStory("Earth defense phase: protect "+currentAreaName()+".",2600);
+    showStory(currentStage().mid+" Earth defense phase: protect "+currentAreaName()+".",3000);
   }else if(e.type==="boss"){
     const clearedStage=currentStage();
     const clearedIndex=stageIndex;
@@ -779,11 +777,15 @@ function defeatEnemy(e,t){
       threatLevel++;
       addMiniDrone();
       showWarning("THREAT LEVEL "+threatLevel);
+      bossClearUntil=t+4400;
+    }
+    else{
+      bossClearUntil=t+3800;
     }
     stagePhase=0;
     bgIndex=currentMinionStage();
     clearBanner={
-      until:t+2200,
+      until:bossClearUntil,
       boss:clearedStage.title,
       next:currentStage().title
     };
