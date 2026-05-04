@@ -84,6 +84,10 @@ let storyPaused=false;
 
 const START_ENEMY_SPEED=.9;
 const MAX_ENEMY_SPEED=2.6;
+const MID_BOSS_DELAY=55000;
+const STAGE_BOSS_DELAY=110000;
+const MID_BOSS_HP=[10,13,15,18];
+const STAGE_BOSS_HP=[30,42,38,48];
 const BG_NAMES=["Space","Moon","Earth","Desert"];
 const STAGES=[
   {
@@ -171,7 +175,7 @@ function resetVars(){
   shotLevel=1;
   weaponMode="normal";
   enemySpeed=START_ENEMY_SPEED;
-  nextBossAt=30000;
+  nextBossAt=MID_BOSS_DELAY;
   bossCount=0;
   lastShot=0;
   lastDifficultyAt=0;
@@ -474,7 +478,7 @@ function spawnMidBoss(){
   update.enemyTimer=0;
   bossClearUntil=performance.now()+900;
   const bossStage=currentBossStage();
-  const midBossHp=5+stageIndex*2;
+  const midBossHp=Math.floor((MID_BOSS_HP[stageIndex]||12)*(1+(threatLevel-1)*.1));
   enemies.push({
     x:60+Math.random()*(W-120),
     y:-70,
@@ -502,7 +506,7 @@ function spawnBoss(){
   bossRage=false;
   shockwaves.push({x:W/2,y:H*.28,born:now,duration:2000});
 
-  const bossHp=Math.floor(([20,30,26,34][stageIndex]||30)*(1+(threatLevel-1)*.12));
+  const bossHp=Math.floor((STAGE_BOSS_HP[stageIndex]||38)*(1+(threatLevel-1)*.12));
   enemies.push({
     x:W/2,
     y:-120,
@@ -791,6 +795,12 @@ function defeatEnemy(e,t){
     spawnStageRewardCapsule();
     life=Math.min(life+1,5);
     stageIndex=(stageIndex+1)%STAGES.length;
+    startTime=t;
+    nextBossAt=MID_BOSS_DELAY;
+    bossCount=0;
+    lastDifficultyAt=0;
+    phaseStartTime=0;
+    difficultyPhase=0;
     if(clearedIndex===STAGES.length-1){
       threatLevel++;
       addMiniDrone();
@@ -852,7 +862,7 @@ function update(t){
     bossCount++;
     if(bossCount%2===1)spawnMidBoss();
     else spawnBoss();
-    nextBossAt+=30000;
+    nextBossAt=bossCount%2===1?STAGE_BOSS_DELAY:STAGE_BOSS_DELAY+MID_BOSS_DELAY;
   }
 
   shoot(t);
