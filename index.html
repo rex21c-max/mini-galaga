@@ -81,13 +81,17 @@ let bossEntrance=null;
 let lastAreaName=null;
 let areaFadeUntil=0;
 let storyPaused=false;
+let storyPauseStarted=0;
+let stageFadeStart=0;
+let stageFadeUntil=0;
 
 const START_ENEMY_SPEED=.9;
 const MAX_ENEMY_SPEED=2.6;
 const MID_BOSS_DELAY=55000;
 const STAGE_BOSS_DELAY=110000;
+const STAGE_INTENSE_GRACE=12000;
 const MID_BOSS_HP=[10,13,15,18];
-const STAGE_BOSS_HP=[30,42,38,48];
+const STAGE_BOSS_HP=[45,63,57,72];
 const BG_NAMES=["Space","Moon","Earth","Desert"];
 const STAGES=[
   {
@@ -189,6 +193,9 @@ function resetVars(){
   lastAreaName=null;
   areaFadeUntil=0;
   storyPaused=false;
+  storyPauseStarted=0;
+  stageFadeStart=0;
+  stageFadeUntil=0;
   storyEl.style.display="none";
   hitStopUntil=0;
   damageFlash=0;
@@ -262,12 +269,24 @@ function showWarning(text){
 function showStory(text){
   if(!text)return;
   storyPaused=true;
-  storyEl.innerHTML="<b>MISSION LOG</b>"+text+"<small>TAP TO CONTINUE</small>";
+  storyPauseStarted=performance.now();
+  const formatted=text.replace(/([.!?])\s+/g,"$1<br>");
+  storyEl.innerHTML="<b>MISSION LOG</b>"+formatted+"<small>TAP TO CONTINUE</small>";
   storyEl.style.display="block";
 }
 
 function resumeStory(){
   if(!storyPaused)return;
+  const pausedFor=performance.now()-storyPauseStarted;
+  startTime+=pausedFor;
+  lastDifficultyAt+=pausedFor;
+  if(hitStopUntil>0)hitStopUntil+=pausedFor;
+  if(bossIntro>0)bossIntro+=pausedFor;
+  if(areaFadeUntil>0)areaFadeUntil+=pausedFor;
+  if(stageFadeUntil>0){
+    stageFadeStart+=pausedFor;
+    stageFadeUntil+=pausedFor;
+  }
   storyPaused=false;
   storyEl.style.display="none";
   bossClearUntil=performance.now()+1000;
@@ -794,6 +813,7 @@ function defeatEnemy(e,t){
     score+=120;
     spawnStageRewardCapsule();
     life=Math.min(life+1,5);
+    stageFadeStart=t;
     stageIndex=(stageIndex+1)%STAGES.length;
     startTime=t;
     nextBossAt=MID_BOSS_DELAY;
@@ -810,6 +830,7 @@ function defeatEnemy(e,t){
     else{
       bossClearUntil=t+3800;
     }
+    stageFadeUntil=stageFadeStart+(clearedIndex===STAGES.length-1?4400:3800);
     stagePhase=0;
     bgIndex=currentMinionStage();
     clearBanner={
@@ -841,7 +862,7 @@ function update(t){
   const elapsed=t-startTime;
   const elapsedSec=elapsed/1000;
 
-  if(elapsedSec-phaseStartTime>10){
+  if(elapsed>STAGE_INTENSE_GRACE && elapsedSec-phaseStartTime>10){
     difficultyPhase=(difficultyPhase+1)%5;
     phaseStartTime=elapsedSec;
     if(difficultyPhase===1||difficultyPhase===3)showWarning("INTENSE");
@@ -2901,6 +2922,23 @@ function dangerEffect(){
   }
 }
 
+function drawStageFade(){
+  const now=performance.now();
+  if(now>=stageFadeUntil)return;
+
+  const duration=stageFadeUntil-stageFadeStart;
+  if(duration<=0)return;
+
+  const p=clamp((now-stageFadeStart)/duration,0,1);
+  const alpha=p<.45 ? p/.45 : (1-p)/.55;
+
+  ctx.save();
+  ctx.globalAlpha=clamp(alpha,0,1)*.92;
+  ctx.fillStyle="#020617";
+  ctx.fillRect(0,0,W,H);
+  ctx.restore();
+}
+
 function draw(){
   ctx.clearRect(0,0,W,H);
 
@@ -2965,6 +3003,7 @@ function draw(){
   drawClearBanner();
   ctx.restore();
 
+  drawStageFade();
   dangerEffect();
 
   if(damageFlash>0){
