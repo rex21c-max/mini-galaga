@@ -361,25 +361,40 @@ function getPhasePower(){
 
 function spawnEnemy(){
   let type="normal";
+  let variant="base";
+  let hp=1;
+  let size={w:30,h:25};
+  let speedMul=1;
   const minionStage=currentMinionStage();
+  const roll=Math.random();
 
   if(stageIndex===0){
-    const roll=Math.random();
-    if(roll<.22)type="split";
-    else if(roll<.40)type="follow";
-  }else if(stageIndex===2 && Math.random()<.22){
-    type="curve";
+    if(roll<.176)type="split";
+    else if(roll<.356)type="follow";
+    if(type==="follow"){hp=2;size={w:38,h:32};}
+    else if(type==="split"){size={w:42,h:36};}
+  }else if(stageIndex===1){
+    if(roll<.24){variant="fast";speedMul=1.22;size={w:26,h:22};}
+    else if(roll<.42){variant="shield";hp=2;speedMul=.82;size={w:36,h:30};}
+    else if(roll<.62){variant="zigzag";speedMul=.98;}
+  }else if(stageIndex===2){
+    if(roll<.24){variant="shard";speedMul=1.18;size={w:26,h:24};}
+    else if(roll<.46){variant="crater";hp=2;speedMul=.74;size={w:38,h:34};}
+    else if(roll<.64){type="curve";size={w:42,h:36};}
+  }else if(stageIndex===3){
+    if(roll<.26){variant="larva";speedMul=1.2;size={w:24,h:38};}
+    else if(roll<.48){variant="armor";hp=2;speedMul=.78;size={w:34,h:48};}
+    else if(roll<.66){variant="weaver";speedMul=.95;size={w:30,h:42};}
   }
 
-  const hp=type==="follow"?2:1;
-  const size=type==="normal"?{w:30,h:25}:{w:42,h:36};
   enemies.push({
     x:30+Math.random()*(W-60),
     y:-40,
     w:size.w,
     h:size.h,
-    s:(2.2+Math.random()*1.7)*enemySpeed,
+    s:(2.2+Math.random()*1.7)*enemySpeed*speedMul,
     type,
+    variant,
     hp,
     maxHp:hp,
     angle:Math.random()*Math.PI*2,
@@ -825,6 +840,25 @@ function update(t){
       if(e.x<24||e.x>W-24)e.vx*=-1;
     }else{
       e.y+=e.s*phase.speed;
+      if(e.variant==="zigzag"){
+        e.x+=Math.sin(e.angle)*3.2;
+        e.angle+=.11;
+      }else if(e.variant==="shard"){
+        e.x+=Math.sin(e.angle)*2.5;
+        e.angle+=.08;
+      }else if(e.variant==="crater"){
+        e.x+=Math.sin(e.angle)*.85;
+        e.angle+=.035;
+      }else if(e.variant==="larva"){
+        e.x+=Math.sin(e.angle)*2.2;
+        e.angle+=.14;
+      }else if(e.variant==="armor"){
+        e.x+=Math.sin(e.angle)*.75;
+        e.angle+=.045;
+      }else if(e.variant==="weaver"){
+        e.x+=Math.sin(e.angle)*4.1;
+        e.angle+=.16;
+      }
     }
   });
 
@@ -1392,6 +1426,9 @@ function drawEnemy(e){
     const angry=e.enraged;
     const flash=e.hitFlash>0;
     const pulse=angry ? .65+Math.sin(Date.now()/70)*.35 : 0;
+    ctx.translate(e.x,e.y);
+    ctx.scale(.9,.9);
+    ctx.translate(-e.x,-e.y);
 
     ctx.shadowBlur=angry?34:20;
     ctx.shadowColor=angry?"#f0abfc":"#a855f7";
@@ -1446,6 +1483,7 @@ function drawEnemy(e){
 
 function drawStageMinion(e){
   const stage=e.stage||0;
+  const variant=e.variant||"base";
   const flash=e.hitFlash>0;
   if(flash){
     ctx.globalAlpha=.55;
@@ -1519,11 +1557,35 @@ function drawStageMinion(e){
     ctx.fill();
   }else if(stage===1){
     ctx.shadowBlur=14;
-    ctx.shadowColor="#e5e7eb";
-    ctx.fillStyle=flash?"#ffffff":"#9ca3af";
+    ctx.shadowColor=variant==="crater"?"#a7f3d0":"#e5e7eb";
+    ctx.fillStyle=flash?"#ffffff":variant==="crater"?"#6b7280":variant==="shard"?"#cbd5e1":"#9ca3af";
     ctx.beginPath();
-    ctx.arc(e.x,e.y,18,0,Math.PI*2);
+    ctx.arc(e.x,e.y,variant==="crater"?22:variant==="shard"?15:18,0,Math.PI*2);
     ctx.fill();
+
+    if(variant==="shard"){
+      ctx.fillStyle="#e5e7eb";
+      ctx.beginPath();
+      ctx.moveTo(e.x,e.y-27);
+      ctx.lineTo(e.x+9,e.y-4);
+      ctx.lineTo(e.x+28,e.y+4);
+      ctx.lineTo(e.x+6,e.y+10);
+      ctx.lineTo(e.x,e.y+28);
+      ctx.lineTo(e.x-6,e.y+10);
+      ctx.lineTo(e.x-28,e.y+4);
+      ctx.lineTo(e.x-9,e.y-4);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    if(variant==="crater"){
+      ctx.fillStyle="#4b5563";
+      [[-9,-10,5],[9,-7,4],[-2,9,7],[12,9,3]].forEach(c=>{
+        ctx.beginPath();
+        ctx.arc(e.x+c[0],e.y+c[1],c[2],0,Math.PI*2);
+        ctx.fill();
+      });
+    }
 
     ctx.fillStyle="#111827";
     ctx.beginPath();
@@ -1539,22 +1601,22 @@ function drawStageMinion(e){
   }else if(stage===2){
     const bob=Math.sin(Date.now()/180+e.angle)*2;
     ctx.shadowBlur=20;
-    ctx.shadowColor="#38bdf8";
+    ctx.shadowColor=variant==="shield"?"#facc15":variant==="fast"?"#fb7185":"#38bdf8";
 
     ctx.fillStyle="rgba(186,230,253,.45)";
     ctx.beginPath();
-    ctx.ellipse(e.x,e.y+bob+1,31,16,0,0,Math.PI*2);
+    ctx.ellipse(e.x,e.y+bob+1,variant==="shield"?36:variant==="fast"?25:31,variant==="shield"?19:14,0,0,Math.PI*2);
     ctx.fill();
 
-    ctx.fillStyle=flash?"#ffffff":"#075985";
+    ctx.fillStyle=flash?"#ffffff":variant==="shield"?"#164e63":variant==="fast"?"#1d4ed8":"#075985";
     ctx.beginPath();
     ctx.moveTo(e.x,e.y-24+bob);
-    ctx.lineTo(e.x+18,e.y-17+bob);
-    ctx.lineTo(e.x+25,e.y-2+bob);
+    ctx.lineTo(e.x+(variant==="fast"?14:18),e.y-17+bob);
+    ctx.lineTo(e.x+(variant==="shield"?29:25),e.y-2+bob);
     ctx.lineTo(e.x+13,e.y+13+bob);
     ctx.lineTo(e.x-13,e.y+13+bob);
-    ctx.lineTo(e.x-25,e.y-2+bob);
-    ctx.lineTo(e.x-18,e.y-17+bob);
+    ctx.lineTo(e.x-(variant==="shield"?29:25),e.y-2+bob);
+    ctx.lineTo(e.x-(variant==="fast"?14:18),e.y-17+bob);
     ctx.closePath();
     ctx.fill();
 
@@ -1578,6 +1640,33 @@ function drawStageMinion(e){
     ctx.moveTo(e.x+38,e.y+13+bob);
     ctx.lineTo(e.x+17,e.y+6+bob);
     ctx.stroke();
+
+    if(variant==="shield"){
+      ctx.strokeStyle="#fef08a";
+      ctx.lineWidth=3;
+      ctx.beginPath();
+      ctx.arc(e.x,e.y+bob,33,0,Math.PI*2);
+      ctx.stroke();
+    }else if(variant==="fast"){
+      ctx.fillStyle="#fb7185";
+      ctx.beginPath();
+      ctx.moveTo(e.x,e.y-32+bob);
+      ctx.lineTo(e.x+7,e.y-17+bob);
+      ctx.lineTo(e.x-7,e.y-17+bob);
+      ctx.closePath();
+      ctx.fill();
+    }else if(variant==="zigzag"){
+      ctx.strokeStyle="#facc15";
+      ctx.lineWidth=2.4;
+      ctx.beginPath();
+      ctx.moveTo(e.x-32,e.y-8+bob);
+      ctx.lineTo(e.x-18,e.y+4+bob);
+      ctx.lineTo(e.x-35,e.y+12+bob);
+      ctx.moveTo(e.x+32,e.y-8+bob);
+      ctx.lineTo(e.x+18,e.y+4+bob);
+      ctx.lineTo(e.x+35,e.y+12+bob);
+      ctx.stroke();
+    }
 
     ctx.fillStyle="#1e3a8a";
     ctx.beginPath();
@@ -1630,26 +1719,27 @@ function drawStageMinion(e){
     ctx.shadowBlur=0;
   }else{
     const tick=Date.now()/180+e.angle;
+    const segmentCount=variant==="larva"?6:variant==="armor"?7:8;
     ctx.shadowBlur=22;
-    ctx.shadowColor="#fb923c";
+    ctx.shadowColor=variant==="armor"?"#facc15":"#fb923c";
     ctx.lineCap="round";
     ctx.lineJoin="round";
 
-    for(let i=0;i<8;i++){
+    for(let i=0;i<segmentCount;i++){
       const y=e.y-34+i*10;
       const x=e.x+Math.sin(tick+i*.7)*7;
-      const w=15+(i<3?3:0);
+      const w=(variant==="armor"?18:variant==="larva"?12:15)+(i<3?3:0);
       const plate=ctx.createLinearGradient(x-w,y-5,x+w,y+8);
-      plate.addColorStop(0,flash?"#ffffff":"#2a1608");
-      plate.addColorStop(.45,flash?"#ffffff":"#f59e0b");
+      plate.addColorStop(0,flash?"#ffffff":variant==="armor"?"#451a03":"#2a1608");
+      plate.addColorStop(.45,flash?"#ffffff":variant==="larva"?"#fb923c":variant==="armor"?"#facc15":"#f59e0b");
       plate.addColorStop(1,flash?"#ffffff":"#5f2608");
 
       ctx.strokeStyle="#1f1308";
-      ctx.lineWidth=4.5;
+      ctx.lineWidth=variant==="armor"?5.6:4.5;
       for(let side=-1;side<=1;side+=2){
         ctx.beginPath();
         ctx.moveTo(x+side*(w-3),y+2);
-        ctx.lineTo(x+side*(w+16),y+7+Math.sin(tick+i)*3);
+        ctx.lineTo(x+side*(w+(variant==="larva"?12:16)),y+7+Math.sin(tick+i)*3);
         ctx.lineTo(x+side*(w+23),y+3);
         ctx.stroke();
       }
@@ -1677,6 +1767,17 @@ function drawStageMinion(e){
     ctx.arc(e.x-7+Math.sin(tick)*4,e.y-37,3.4,0,Math.PI*2);
     ctx.arc(e.x+7+Math.sin(tick)*4,e.y-37,3.4,0,Math.PI*2);
     ctx.fill();
+
+    if(variant==="weaver"){
+      ctx.strokeStyle="#fed7aa";
+      ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(e.x-24,e.y-10);
+      ctx.quadraticCurveTo(e.x,e.y+16,e.x+24,e.y+42);
+      ctx.moveTo(e.x+24,e.y-10);
+      ctx.quadraticCurveTo(e.x,e.y+16,e.x-24,e.y+42);
+      ctx.stroke();
+    }
 
     ctx.fillStyle="#f97316";
     ctx.beginPath();
