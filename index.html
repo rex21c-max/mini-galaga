@@ -12,8 +12,9 @@ canvas{display:block;background:#020617;}
 #title h1{font-size:46px;color:#38bdf8;text-shadow:0 0 20px #38bdf8;animation:float 2s infinite}
 #title p{color:white;font-size:18px;animation:blink 1s infinite}
 #warning{position:fixed;top:32%;left:0;right:0;text-align:center;color:#facc15;font:42px sans-serif;font-weight:bold;text-shadow:0 0 18px #ef4444;z-index:4;display:none}
-#story{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);max-width:min(86vw,560px);padding:10px 14px;border:1px solid rgba(125,211,252,.5);background:rgba(2,6,23,.74);color:#bae6fd;font:14px sans-serif;line-height:1.38;text-align:center;text-shadow:0 0 8px #38bdf8;box-shadow:0 0 22px rgba(56,189,248,.25);z-index:6;display:none;cursor:pointer}
-#story b{color:#facc15}
+#story{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(88vw,640px);padding:18px 22px;border:1px solid rgba(125,211,252,.58);background:rgba(2,6,23,.82);color:#dff6ff;font:17px sans-serif;line-height:1.48;text-align:center;text-shadow:0 0 8px #38bdf8;box-shadow:0 0 28px rgba(56,189,248,.3);z-index:6;display:none;cursor:pointer}
+#story b{display:block;margin-bottom:8px;color:#facc15;font-size:13px;letter-spacing:1px}
+#story small{display:block;margin-top:12px;color:#7dd3fc;font:bold 12px sans-serif;letter-spacing:1px}
 #msg{position:fixed;top:42%;left:0;right:0;text-align:center;color:white;font:26px sans-serif;text-shadow:0 0 12px #60a5fa;z-index:5;display:none}
 #msg button{margin:14px 7px 0;padding:11px 18px;border:1px solid #7dd3fc;background:rgba(15,23,42,.9);color:#e0f2fe;font:bold 14px sans-serif;box-shadow:0 0 14px rgba(56,189,248,.55);cursor:pointer}
 #msg button:active{transform:translateY(1px);background:#0f172a}
@@ -257,7 +258,7 @@ function showWarning(text){
 function showStory(text){
   if(!text)return;
   storyPaused=true;
-  storyEl.innerHTML="<b>MISSION LOG</b> / "+text+"<br><small>TAP TO CONTINUE</small>";
+  storyEl.innerHTML="<b>MISSION LOG</b>"+text+"<small>TAP TO CONTINUE</small>";
   storyEl.style.display="block";
 }
 
@@ -437,6 +438,7 @@ function spawnEnemy(){
     if(roll<.24){variant="fast";speedMul=1.22;size={w:26,h:22};}
     else if(roll<.42){variant="shield";hp=2;speedMul=.82;size={w:36,h:30};}
     else if(roll<.62){variant="zigzag";speedMul=.98;}
+    size={w:size.w*.9,h:size.h*.9};
   }else if(stageIndex===2){
     if(roll<.24){variant="shard";speedMul=1.18;size={w:26,h:24};}
     else if(roll<.46){variant="crater";hp=2;speedMul=.74;size={w:38,h:34};}
@@ -1876,7 +1878,7 @@ function drawStageMinion(e){
 
   ctx.save();
   ctx.translate(e.x,e.y);
-  ctx.scale(.7,.7);
+  ctx.scale(stage===2?.63:.7,stage===2?.63:.7);
   ctx.translate(-e.x,-e.y);
 
   if(stage===0){
