@@ -443,9 +443,9 @@ function addMiniDrone(){
 
 function getPhasePower(){
   if(difficultyPhase===0)return {spawn:.6,speed:.8};
-  if(difficultyPhase===1)return {spawn:1.52,speed:1.3};
+  if(difficultyPhase===1)return {spawn:1.368,speed:1.17};
   if(difficultyPhase===2)return {spawn:1.0,speed:1.0};
-  if(difficultyPhase===3)return {spawn:1.71,speed:1.4};
+  if(difficultyPhase===3)return {spawn:1.539,speed:1.26};
   return {spawn:.5,speed:.7};
 }
 
@@ -785,15 +785,25 @@ function defeatEnemy(e,t){
 
   if(e.type==="boss"){
     boom(e.x,e.y,true);
-    shake=40;
-    hitStopUntil=t+300;
-    bossClearUntil=t+2000;
+    for(let i=0;i<6;i++){
+      setTimeout(()=>{
+        boom(e.x+(Math.random()-.5)*120,e.y+(Math.random()-.5)*80,true);
+        shake=Math.max(shake,24);
+        playTone(90+Math.random()*90,.12,"sawtooth",.05);
+      },i*120);
+    }
+    shake=58;
+    damageFlash=1.8;
+    hitStopUntil=t+1100;
+    bossClearUntil=t+2600;
     enemyBullets=[];
     update.enemyTimer=0;
     bossRage=false;
-    shockwaves.push({x:e.x,y:e.y,born:performance.now(),duration:900});
-    shockwaves.push({x:e.x-48,y:e.y+8,born:performance.now()+80,duration:760});
-    shockwaves.push({x:e.x+48,y:e.y+8,born:performance.now()+140,duration:760});
+    shockwaves.push({x:e.x,y:e.y,born:performance.now(),duration:1500});
+    shockwaves.push({x:e.x-62,y:e.y+8,born:performance.now()+120,duration:1100});
+    shockwaves.push({x:e.x+62,y:e.y+8,born:performance.now()+220,duration:1100});
+    shockwaves.push({x:e.x,y:e.y-44,born:performance.now()+360,duration:900});
+    showWarning("BOSS DESTROYED");
   }else{
     boom(e.x,e.y,e.type!=="normal");
     shake=e.type==="normal"?5:14;
@@ -1960,7 +1970,6 @@ function drawEnemy(e){
     else if(e.stage===2)drawBossSky(e);
     else drawBossDesert(e);
     ctx.restore();
-    drawHp(e);
     return;
   }
 
@@ -2956,25 +2965,33 @@ function drawBossHP(){
   const boss=enemies.find(e=>e.type==="boss");
   if(!boss)return;
 
-  const barWidth=W*.62,barHeight=12,x=(W-barWidth)/2,y=70;
+  const barWidth=Math.min(210,W*.42),barHeight=8,x=W-barWidth-14,y=42;
+  const hpRate=clamp(boss.hp/boss.maxHp,0,1);
 
-  ctx.textAlign="center";
+  ctx.save();
+  ctx.textAlign="left";
   ctx.textBaseline="middle";
-  ctx.font="bold 14px sans-serif";
-  ctx.shadowBlur=bossRage?16:8;
+  ctx.font="bold 10px sans-serif";
+  ctx.shadowBlur=bossRage?10:5;
   ctx.shadowColor=bossRage?"#f97316":"#ef4444";
   ctx.fillStyle=bossRage?"#fed7aa":"#fee2e2";
-  ctx.fillText(boss.name||BOSS_NAMES[boss.stage]||"BOSS",W/2,y-17);
+  ctx.fillText((boss.name||BOSS_NAMES[boss.stage]||"BOSS").slice(0,22),x,y-12);
   ctx.shadowBlur=0;
 
-  ctx.fillStyle="rgba(15,23,42,.75)";
-  ctx.fillRect(x,y,barWidth,barHeight);
+  ctx.fillStyle="rgba(2,6,23,.72)";
+  ctx.fillRect(x-6,y-5,barWidth+12,barHeight+10);
 
   ctx.fillStyle=bossRage?"#f97316":"#ef4444";
-  ctx.fillRect(x,y,barWidth*(boss.hp/boss.maxHp),barHeight);
+  ctx.fillRect(x,y,barWidth*hpRate,barHeight);
 
-  ctx.strokeStyle="#fff";
+  ctx.strokeStyle="rgba(255,255,255,.72)";
   ctx.strokeRect(x,y,barWidth,barHeight);
+
+  ctx.fillStyle="rgba(226,232,240,.8)";
+  ctx.font="9px sans-serif";
+  ctx.textAlign="right";
+  ctx.fillText(Math.ceil(hpRate*100)+"%",x+barWidth,y+barHeight+13);
+  ctx.restore();
 }
 
 function drawShockwaves(){
@@ -3227,7 +3244,9 @@ function draw(){
   dangerEffect();
 
   if(damageFlash>0){
-    ctx.fillStyle=`rgba(255,0,0,${damageFlash*.35})`;
+    const flashColor=damageFlash>1?"255,255,255":"255,0,0";
+    const flashAlpha=Math.min(.72,damageFlash*.35);
+    ctx.fillStyle=`rgba(${flashColor},${flashAlpha})`;
     ctx.fillRect(0,0,W,H);
     damageFlash*=.85;
     if(damageFlash<.02)damageFlash=0;
