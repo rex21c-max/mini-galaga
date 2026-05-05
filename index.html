@@ -267,6 +267,7 @@ function continueGame(){
   player={x:W/2,y:H-80,w:38,h:48};
   enemyBullets=[];
   enemies=enemies.filter(e=>e.type==="boss"||e.type==="midboss");
+  restoreMiniDroneReward();
   invincibleUntil=performance.now()+3500;
   playerHitInvincibleUntil=performance.now()+3500;
   bossClearUntil=performance.now()+1800;
@@ -448,7 +449,46 @@ function isStageOneOpening(){
 function addMiniDrone(){
   if(!miniDrones)miniDrones=[];
   if(miniDrones.length>=1)return;
-  miniDrones.push({x:player.x-42,y:player.y+8,w:24,h:20,angle:0});
+  miniDrones.push({x:player.x-42,y:player.y+8,w:24,h:20,angle:0,nextShot:0});
+}
+
+function restoreMiniDroneReward(){
+  if(threatLevel>1)addMiniDrone();
+}
+
+function droneShoot(d,t){
+  if(t<d.nextShot)return;
+  const targets=enemies.filter(e=>e.y>-40&&e.y<H*.82);
+  if(targets.length===0)return;
+
+  let target=targets[0];
+  let best=Infinity;
+  targets.forEach(e=>{
+    const dx=e.x-d.x;
+    const dy=e.y-d.y;
+    const dist=dx*dx+dy*dy;
+    if(dist<best){
+      best=dist;
+      target=e;
+    }
+  });
+
+  const aim=clamp((target.x-d.x)/120,-2.1,2.1);
+  bullets.push({
+    x:d.x,
+    y:d.y-16,
+    w:11,
+    h:17,
+    vx:aim,
+    vy:-7.2,
+    s:7.2,
+    type:"bomb",
+    damage:2,
+    blast:44,
+    fromDrone:true
+  });
+  d.nextShot=t+1100;
+  playTone(520,.055,"sawtooth",.025);
 }
 
 function getPhasePower(){
@@ -946,6 +986,7 @@ function update(t){
     d.x+=(targetX-d.x)*.14;
     d.y+=(targetY-d.y)*.14;
     d.angle+=.12;
+    droneShoot(d,t);
   });
 
   enemyBullets.forEach(b=>{
@@ -3245,7 +3286,7 @@ function draw(){
       ctx.beginPath();
       ctx.ellipse(b.x,b.y,7,11,0,0,Math.PI*2);
       ctx.fill();
-      ctx.fillStyle="#bbf7d0";
+      ctx.fillStyle=b.fromDrone?"#67e8f9":"#bbf7d0";
       ctx.fillRect(b.x-2,b.y-13,4,7);
     }else if(b.type==="spread"){
       ctx.fillRect(b.x-2,b.y-7,4,14);
