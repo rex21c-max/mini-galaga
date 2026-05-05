@@ -92,6 +92,7 @@ let lastAreaName=null;
 let areaFadeUntil=0;
 let storyPaused=false;
 let storyPauseStarted=0;
+let pendingStoryWarning=null;
 let stageFadeStart=0;
 let stageFadeUntil=0;
 
@@ -204,6 +205,7 @@ function resetVars(){
   areaFadeUntil=0;
   storyPaused=false;
   storyPauseStarted=0;
+  pendingStoryWarning=null;
   stageFadeStart=0;
   stageFadeUntil=0;
   storyEl.style.display="none";
@@ -236,7 +238,8 @@ function startGame(){
   state="play";
   title.style.display="none";
   msg.style.display="none";
-  showWarning(currentStage().warning);
+  pendingStoryWarning=currentStage().warning;
+  showStory(currentStage().title+". "+currentStage().intro);
   startMusic();
 }
 
@@ -299,6 +302,10 @@ function resumeStory(){
   }
   storyPaused=false;
   storyEl.style.display="none";
+  if(pendingStoryWarning){
+    showWarning(pendingStoryWarning);
+    pendingStoryWarning=null;
+  }
   bossClearUntil=performance.now()+1000;
   update.enemyTimer=0;
 }
@@ -826,7 +833,7 @@ function defeatEnemy(e,t){
     enemyBullets=[];
     enemies=enemies.filter(enemy=>enemy.type==="boss"||enemy.type==="midboss");
     showWarning("EARTH DEFENSE");
-    showStory(currentStage().mid+" Earth defense phase: protect "+currentAreaName()+".",3000);
+    showStory("Earth defense phase: protect "+currentAreaName()+".");
   }else if(e.type==="boss"){
     const clearedStage=currentStage();
     const clearedIndex=stageIndex;
@@ -2630,24 +2637,56 @@ function drawBossSpace(e){
   ctx.ellipse(e.x,e.y,41,30,0,0,Math.PI*2);
   ctx.stroke();
 
-  ctx.fillStyle="#f5d0fe";
+  const face=ctx.createRadialGradient(e.x,e.y+2,8,e.x,e.y+2,40);
+  face.addColorStop(0,rage?"rgba(254,240,138,.82)":"rgba(216,180,254,.68)");
+  face.addColorStop(.72,"rgba(15,23,42,.58)");
+  face.addColorStop(1,"rgba(15,23,42,.18)");
+  ctx.fillStyle=face;
   ctx.beginPath();
-  ctx.arc(e.x-18,e.y-8,11,0,Math.PI*2);
-  ctx.arc(e.x+17,e.y-7,10,0,Math.PI*2);
-  ctx.arc(e.x,e.y+12,9,0,Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle=rage?"#ef4444":"#020617";
-  ctx.beginPath();
-  ctx.arc(e.x-17,e.y-7,5,0,Math.PI*2);
-  ctx.arc(e.x+18,e.y-6,4.5,0,Math.PI*2);
-  ctx.arc(e.x+1,e.y+13,4,0,Math.PI*2);
+  ctx.ellipse(e.x,e.y+3,37,29,0,0,Math.PI*2);
   ctx.fill();
 
-  ctx.strokeStyle=rage?"#fef08a":"#22c55e";
+  ctx.fillStyle="rgba(15,23,42,.72)";
+  ctx.beginPath();
+  ctx.ellipse(e.x-18,e.y-7,17,14,-.12,0,Math.PI*2);
+  ctx.ellipse(e.x+18,e.y-7,17,14,.12,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#f5d0fe";
+  ctx.beginPath();
+  ctx.arc(e.x-18,e.y-8,10,0,Math.PI*2);
+  ctx.arc(e.x+18,e.y-8,10,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle=rage?"#ef4444":"#020617";
+  ctx.beginPath();
+  ctx.arc(e.x-17,e.y-7,4.8,0,Math.PI*2);
+  ctx.arc(e.x+19,e.y-7,4.8,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle=rage?"#fef08a":"#22c55e";
+  ctx.beginPath();
+  ctx.arc(e.x,e.y+8,6,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.strokeStyle="#020617";
+  ctx.lineWidth=8;
+  ctx.beginPath();
+  ctx.arc(e.x,e.y+17,28,.08*Math.PI,.92*Math.PI);
+  ctx.stroke();
+
+  ctx.strokeStyle=rage?"#fef08a":"#86efac";
   ctx.lineWidth=4;
   ctx.beginPath();
-  ctx.arc(e.x,e.y+14,30,0,Math.PI);
+  ctx.arc(e.x,e.y+17,27,.12*Math.PI,.88*Math.PI);
   ctx.stroke();
+
+  ctx.fillStyle="#e0f2fe";
+  for(let i=-2;i<=2;i++){
+    ctx.beginPath();
+    roundedRectPath(e.x+i*9-2,e.y+18,4,9,2);
+    ctx.fill();
+  }
 }
 
 function drawBossMoon(e){
