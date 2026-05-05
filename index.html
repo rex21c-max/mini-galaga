@@ -72,6 +72,7 @@ let bgIndex=0;
 let stageIndex=0;
 let stagePhase=0;
 let threatLevel=1;
+let tryCount=1;
 
 let difficultyPhase=0;
 let phaseStartTime=0;
@@ -215,6 +216,7 @@ function resetVars(){
   stageIndex=0;
   stagePhase=0;
   threatLevel=1;
+  tryCount=1;
   difficultyPhase=0;
   phaseStartTime=0;
   musicMode=0;
@@ -229,7 +231,7 @@ function updateUI(){
   lifeEl.textContent=life;
   bestEl.textContent=best;
   const shotText=weaponMode==="normal"?shotLevel:weaponMode.toUpperCase();
-  shotEl.textContent=shotText+" / T"+threatLevel;
+  shotEl.textContent=shotText+" / T"+tryCount;
 }
 
 function startGame(){
@@ -258,6 +260,7 @@ function gameOver(){
 }
 
 function continueGame(){
+  tryCount++;
   life=1;
   state="play";
   msg.style.display="none";
