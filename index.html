@@ -94,6 +94,7 @@ let areaFadeUntil=0;
 let storyPaused=false;
 let storyPauseStarted=0;
 let pendingStoryWarning=null;
+let pendingMidBossTransition=null;
 let stageFadeStart=0;
 let stageFadeUntil=0;
 
@@ -102,8 +103,9 @@ const MAX_ENEMY_SPEED=2.6;
 const MID_BOSS_DELAY=55000;
 const STAGE_BOSS_DELAY=110000;
 const STAGE_INTENSE_GRACE=12000;
+const INTENSE_FIRE_RATE_BOOST=.9;
 const MID_BOSS_HP=[10,13,15,18];
-const STAGE_BOSS_HP=[45,63,57,72];
+const STAGE_BOSS_HP=[45,63,57,72,140];
 const BG_NAMES=["Space","Moon","Earth","Desert"];
 const STAGES=[
   {
@@ -159,7 +161,21 @@ const STAGES=[
     clear:"CORE's final evolution has fallen."
   }
 ];
-const BOSS_NAMES=STAGES.map(s=>s.boss);
+const FINAL_STAGE={
+  title:"Core Abyss",
+  warning:"CORE ABYSS",
+  from:"Core Gate",
+  earth:"Core Heart",
+  minionStage:0,
+  bossStage:4,
+  boss:"CORE",
+  intro:"The true source has opened beyond the infected swarm.",
+  mid:"",
+  bossLog:"CORE has no body. It builds one from every signal it stole.",
+  clear:"CORE signal terminated."
+};
+const FINAL_STAGE_INDEX=STAGES.length;
+const BOSS_NAMES=STAGES.concat([FINAL_STAGE]).map(s=>s.boss);
 
 function resize(){
   W=canvas.width=innerWidth;
@@ -207,6 +223,7 @@ function resetVars(){
   storyPaused=false;
   storyPauseStarted=0;
   pendingStoryWarning=null;
+  pendingMidBossTransition=null;
   stageFadeStart=0;
   stageFadeUntil=0;
   storyEl.style.display="none";
@@ -259,6 +276,22 @@ function gameOver(){
   msg.style.display="block";
 }
 
+function showEnding(){
+  state="ending";
+  storyPaused=false;
+  storyEl.style.display="none";
+  if(score>best){
+    best=score;
+    localStorage.setItem("miniGalaxiaBest",String(best));
+  }
+  updateUI();
+  msg.innerHTML=
+    "CORE TERMINATED<br><small>Humanity's last signal is clear.</small><br>"+
+    "<small>Score: "+score+" / Best: "+best+"</small><br>"+
+    "<button data-action=\"restart\">PLAY AGAIN</button>";
+  msg.style.display="block";
+}
+
 function continueGame(){
   tryCount++;
   life=1;
@@ -268,8 +301,8 @@ function continueGame(){
   enemyBullets=[];
   enemies=enemies.filter(e=>e.type==="boss"||e.type==="midboss");
   restoreMiniDroneReward();
-  invincibleUntil=performance.now()+3500;
-  playerHitInvincibleUntil=performance.now()+3500;
+  invincibleUntil=performance.now()+6000;
+  playerHitInvincibleUntil=performance.now()+6000;
   bossClearUntil=performance.now()+1800;
   update.enemyTimer=0;
   damageFlash=0;
@@ -367,7 +400,8 @@ function startMusic(){
 }
 
 function shoot(t){
-  const delay=weaponMode==="bomb"?240:weaponMode==="spread"?260:210;
+  const baseDelay=weaponMode==="bomb"?240:weaponMode==="spread"?260:210;
+  const delay=(difficultyPhase===1||difficultyPhase===3)?baseDelay*INTENSE_FIRE_RATE_BOOST:baseDelay;
   if(t-lastShot<delay)return;
 
   if(weaponMode==="spread"){
@@ -426,7 +460,11 @@ function hasBoss(){
 }
 
 function currentStage(){
-  return STAGES[stageIndex%STAGES.length];
+  return stageIndex===FINAL_STAGE_INDEX?FINAL_STAGE:STAGES[stageIndex%STAGES.length];
+}
+
+function isFinalStage(){
+  return stageIndex===FINAL_STAGE_INDEX;
 }
 
 function currentAreaName(){
@@ -440,6 +478,18 @@ function currentMinionStage(){
 
 function currentBossStage(){
   return currentStage().bossStage;
+}
+
+function finishMidBossTransition(){
+  if(!pendingMidBossTransition)return;
+  const nextArea=pendingMidBossTransition.nextArea;
+  stagePhase=1;
+  bgIndex=currentMinionStage();
+  lastAreaName=nextArea;
+  areaFadeUntil=performance.now()+900;
+  showWarning("EARTH DEFENSE");
+  if(threatLevel<2)showStory("Earth defense phase: protect "+nextArea+".");
+  pendingMidBossTransition=null;
 }
 
 function isStageOneOpening(){
@@ -493,9 +543,9 @@ function droneShoot(d,t){
 
 function getPhasePower(){
   if(difficultyPhase===0)return {spawn:.6,speed:.8};
-  if(difficultyPhase===1)return {spawn:1.368,speed:1.17};
+  if(difficultyPhase===1)return {spawn:1.16,speed:1.17};
   if(difficultyPhase===2)return {spawn:1.0,speed:1.0};
-  if(difficultyPhase===3)return {spawn:1.539,speed:1.26};
+  if(difficultyPhase===3)return {spawn:1.26,speed:1.26};
   return {spawn:.5,speed:.7};
 }
 
@@ -588,9 +638,9 @@ function spawnBoss(){
   const bossHp=Math.floor((STAGE_BOSS_HP[stageIndex]||38)*(1+(threatLevel-1)*.12));
   enemies.push({
     x:W/2,
-    y:-120,
-    w:112,
-    h:94,
+    y:isFinalStage()?-150:-120,
+    w:isFinalStage()?136:112,
+    h:isFinalStage()?116:94,
     s:1,
     vx:1.2,
     type:"boss",
@@ -632,6 +682,24 @@ function bossShoot(e,t){
           enemyBullets.push({x:e.x,y:e.y+16,w:8,h:14,vx:i*1.3,vy:5.1});
         }
       }
+    }else if(e.stage===4){
+      for(let i=0;i<12;i++){
+        const a=i*Math.PI*2/12+t/420;
+        enemyBullets.push({
+          x:e.x+Math.cos(a)*26,
+          y:e.y+Math.sin(a)*20,
+          w:8,
+          h:14,
+          vx:Math.cos(a)*2.1,
+          vy:3.2+Math.sin(a)*1.2
+        });
+      }
+      if(t-e.rageShotTimer>1100){
+        e.rageShotTimer=t;
+        for(let i=-2;i<=2;i++){
+          enemyBullets.push({x:e.x,y:e.y+30,w:8,h:16,vx:i*1.05,vy:5.4});
+        }
+      }
     }else{
       for(let i=-2;i<=2;i++){
         enemyBullets.push({x:e.x,y:e.y+30,w:8,h:14,vx:i*1.25,vy:4.0,curve:.04*i});
@@ -654,6 +722,12 @@ function bossShoot(e,t){
     enemyBullets.push({x:e.x,y:e.y+30,w:8,h:14,vx:0,vy:6});
     enemyBullets.push({x:e.x-18,y:e.y+25,w:8,h:14,vx:0,vy:5.6});
     enemyBullets.push({x:e.x+18,y:e.y+25,w:8,h:14,vx:0,vy:5.6});
+  }else if(e.stage===4){
+    for(let i=-1;i<=1;i++){
+      enemyBullets.push({x:e.x,y:e.y+30,w:8,h:14,vx:i*1.5,vy:4.4});
+    }
+    enemyBullets.push({x:e.x-32,y:e.y+16,w:8,h:14,vx:-.8,vy:3.8});
+    enemyBullets.push({x:e.x+32,y:e.y+16,w:8,h:14,vx:.8,vy:3.8});
   }else{
     for(let i=-1;i<=1;i++){
       enemyBullets.push({x:e.x,y:e.y+30,w:8,h:14,vx:i*1.8,vy:3.8,curve:.045*i});
@@ -865,26 +939,55 @@ function defeatEnemy(e,t){
   }else if(e.type==="midboss"){
     score+=50;
     dropItem(e.x,e.y,midBossDropType(e.stage||0));
-    stagePhase=1;
-    bgIndex=currentMinionStage();
+    showWarning("MID BOSS DESTROYED");
+    for(let i=0;i<3;i++){
+      setTimeout(()=>{
+        boom(e.x+(Math.random()-.5)*80,e.y+(Math.random()-.5)*54,true);
+        shake=Math.max(shake,18);
+        playTone(130+Math.random()*120,.09,"sawtooth",.04);
+      },i*170);
+    }
+    shake=34;
+    damageFlash=.95;
+    hitStopUntil=t+650;
+    bossClearUntil=t+2800;
+    stageFadeStart=t+800;
+    stageFadeUntil=t+2800;
     clearBanner={
-      until:t+3000,
+      until:t+2800,
       boss:"MID BOSS",
-      next:currentAreaName()
+      next:currentStage().earth
     };
-    bossClearUntil=t+3000;
     enemyBullets=[];
     enemies=enemies.filter(enemy=>enemy.type==="boss"||enemy.type==="midboss");
-    showWarning("EARTH DEFENSE");
-    showStory("Earth defense phase: protect "+currentAreaName()+".");
+    shockwaves.push({x:e.x,y:e.y,born:performance.now(),duration:900});
+    shockwaves.push({x:e.x-34,y:e.y+6,born:performance.now()+140,duration:720});
+    shockwaves.push({x:e.x+34,y:e.y+6,born:performance.now()+240,duration:720});
+    pendingMidBossTransition={
+      triggerAt:t+1750,
+      nextArea:currentStage().earth
+    };
   }else if(e.type==="boss"){
     const clearedStage=currentStage();
     const clearedIndex=stageIndex;
     score+=120;
+    if(isFinalStage()){
+      bossClearUntil=t+5200;
+      stageFadeStart=t;
+      stageFadeUntil=t+5200;
+      clearBanner={
+        until:bossClearUntil,
+        boss:"CORE",
+        next:"ENDING"
+      };
+      showStory("CORE signal terminated. The infected stars go silent. MINI GALAXIA returns as humanity's last light.",4200);
+      setTimeout(()=>showEnding(),4200);
+      updateUI();
+      return;
+    }
     spawnStageRewardCapsule();
     life=Math.min(life+1,5);
     stageFadeStart=t;
-    stageIndex=(stageIndex+1)%STAGES.length;
     startTime=t;
     nextBossAt=MID_BOSS_DELAY;
     bossCount=0;
@@ -892,15 +995,24 @@ function defeatEnemy(e,t){
     phaseStartTime=0;
     difficultyPhase=0;
     if(clearedIndex===STAGES.length-1){
-      threatLevel++;
-      addMiniDrone();
-      showWarning("THREAT LEVEL "+threatLevel);
-      bossClearUntil=t+4400;
+      if(threatLevel>=2){
+        stageIndex=FINAL_STAGE_INDEX;
+        showWarning("FINAL STAGE");
+        bossClearUntil=t+5200;
+        nextBossAt=35000;
+      }else{
+        threatLevel++;
+        stageIndex=0;
+        addMiniDrone();
+        showWarning("THREAT LEVEL "+threatLevel);
+        bossClearUntil=t+4400;
+      }
     }
     else{
+      stageIndex=(stageIndex+1)%STAGES.length;
       bossClearUntil=t+3800;
     }
-    stageFadeUntil=stageFadeStart+(clearedIndex===STAGES.length-1?4400:3800);
+    stageFadeUntil=stageFadeStart+(stageIndex===FINAL_STAGE_INDEX?5200:clearedIndex===STAGES.length-1?4400:3800);
     stagePhase=0;
     bgIndex=currentMinionStage();
     clearBanner={
@@ -909,9 +1021,13 @@ function defeatEnemy(e,t){
       next:currentStage().title
     };
     if(clearedIndex===STAGES.length-1){
-      showStory("CORE has adapted. Threat Level "+threatLevel+" begins. MINI GALAXIA deploys a guard drone.",4200);
+      if(stageIndex===FINAL_STAGE_INDEX){
+        showStory("CORE exposed. NEW MISSION: TERMINATE CORE.",4200);
+      }else{
+        showStory("CORE has evolved. Threat Level "+threatLevel+" begins. MINI GALAXIA deploys a guard drone. NEW MISSION: TERMINATE CORE.",4200);
+      }
     }else{
-      showStory(clearedStage.clear+" Next target: "+currentStage().title+". "+currentStage().intro,3600);
+      if(threatLevel<2)showStory(clearedStage.clear+" Next target: "+currentStage().title+". "+currentStage().intro,3600);
     }
   }else{
     score+=10;
@@ -925,6 +1041,11 @@ function update(t){
   if(storyPaused)return;
   if(t<hitStopUntil)return;
   if(performance.now()<bossIntro)return;
+
+  if(pendingMidBossTransition && t>=pendingMidBossTransition.triggerAt){
+    finishMidBossTransition();
+    return;
+  }
 
   trail.push({x:player.x,y:player.y});
   if(trail.length>10)trail.shift();
@@ -950,10 +1071,16 @@ function update(t){
   }
 
   if(elapsed>=nextBossAt && !hasBoss()){
-    bossCount++;
-    if(bossCount%2===1)spawnMidBoss();
-    else spawnBoss();
-    nextBossAt=bossCount%2===1?STAGE_BOSS_DELAY:STAGE_BOSS_DELAY+MID_BOSS_DELAY;
+    if(isFinalStage()){
+      bossCount=2;
+      spawnBoss();
+      nextBossAt=Infinity;
+    }else{
+      bossCount++;
+      if(bossCount%2===1)spawnMidBoss();
+      else spawnBoss();
+      nextBossAt=bossCount%2===1?STAGE_BOSS_DELAY:STAGE_BOSS_DELAY+MID_BOSS_DELAY;
+    }
   }
 
   shoot(t);
@@ -1243,6 +1370,8 @@ function drawBackground(){
     bg.addColorStop(0,"#fbbf24");bg.addColorStop(.58,"#fb923c");bg.addColorStop(1,"#7c2d12");
   }else if(area==="Solar Zone"){
     bg.addColorStop(0,"#3b0505");bg.addColorStop(.48,"#b91c1c");bg.addColorStop(1,"#fb923c");
+  }else if(area==="Core Gate"||area==="Core Heart"){
+    bg.addColorStop(0,"#020617");bg.addColorStop(.45,"#1e1b4b");bg.addColorStop(1,"#3b0764");
   }else if(area==="Orbit"){
     bg.addColorStop(0,"#031a2f");bg.addColorStop(.48,"#075985");bg.addColorStop(1,"#020617");
   }else{
@@ -1252,7 +1381,7 @@ function drawBackground(){
   ctx.fillStyle=bg;
   ctx.fillRect(0,0,W,H);
 
-  if(area==="Space"||area==="Orbit"||area==="Moon"||area==="Night Sky"||area==="Solar Zone"){
+  if(area==="Space"||area==="Orbit"||area==="Moon"||area==="Night Sky"||area==="Solar Zone"||area==="Core Gate"||area==="Core Heart"){
     stars.forEach(s=>{
       const y=(s.y+t/28*s.s)%H;
       ctx.fillStyle=area==="Solar Zone"?"#fed7aa":"#e0f2fe";
@@ -1624,6 +1753,36 @@ function drawBackground(){
     }
   }
 
+  if(area==="Core Gate"||area==="Core Heart"){
+    const coreGlow=ctx.createRadialGradient(W*.5,H*.28,8,W*.5,H*.28,190);
+    coreGlow.addColorStop(0,"rgba(250,204,21,.4)");
+    coreGlow.addColorStop(.34,"rgba(168,85,247,.22)");
+    coreGlow.addColorStop(1,"rgba(2,6,23,0)");
+    ctx.fillStyle=coreGlow;
+    ctx.beginPath();
+    ctx.arc(W*.5,H*.28,190,0,Math.PI*2);
+    ctx.fill();
+
+    ctx.strokeStyle="rgba(216,180,254,.22)";
+    ctx.lineWidth=2;
+    for(let i=0;i<6;i++){
+      const r=58+i*34+Math.sin(t/600+i)*8;
+      ctx.beginPath();
+      ctx.ellipse(W*.5,H*.3,r,r*.32,t/1100+i*.4,0,Math.PI*2);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle="rgba(15,23,42,.45)";
+    ctx.beginPath();
+    ctx.moveTo(0,H*.86);
+    ctx.quadraticCurveTo(W*.24,H*.76,W*.5,H*.84);
+    ctx.quadraticCurveTo(W*.78,H*.94,W,H*.8);
+    ctx.lineTo(W,H);
+    ctx.lineTo(0,H);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   if(now<areaFadeUntil){
     const p=(areaFadeUntil-now)/1400;
     ctx.fillStyle=`rgba(2,6,23,${p*.82})`;
@@ -1634,7 +1793,7 @@ function drawBackground(){
   ctx.fillRect(8,34,210,38);
   ctx.fillStyle="#e0f2fe";
   ctx.font="bold 12px sans-serif";
-  ctx.fillText("T"+threatLevel+" / STAGE "+(stageIndex+1)+" - "+stage.title.toUpperCase(),16,50);
+  ctx.fillText("STAGE "+(stageIndex+1)+" - "+stage.title.toUpperCase(),16,50);
   ctx.font="12px sans-serif";
   ctx.fillText("AREA: "+area.toUpperCase(),16,66);
 }
@@ -2019,7 +2178,8 @@ function drawEnemy(e){
     if(e.stage===0)drawBossSpace(e);
     else if(e.stage===1)drawBossMoon(e);
     else if(e.stage===2)drawBossSky(e);
-    else drawBossDesert(e);
+    else if(e.stage===3)drawBossDesert(e);
+    else drawBossCore(e);
     ctx.restore();
     return;
   }
@@ -2937,6 +3097,80 @@ function drawBossDesert(e){
   ctx.lineTo(tailX-21,e.y+106);
   ctx.closePath();
   ctx.fill();
+  ctx.shadowBlur=0;
+}
+
+function drawBossCore(e){
+  const rage=e.hp<e.maxHp*.4;
+  const tick=Date.now()/260;
+  const pulse=Math.sin(Date.now()/95)*5;
+
+  ctx.shadowBlur=rage?54:38;
+  ctx.shadowColor=rage?"#facc15":"#a855f7";
+  ctx.lineCap="round";
+  ctx.lineJoin="round";
+
+  ctx.strokeStyle=rage?"rgba(250,204,21,.78)":"rgba(216,180,254,.68)";
+  ctx.lineWidth=4;
+  for(let i=0;i<4;i++){
+    ctx.beginPath();
+    ctx.ellipse(e.x,e.y,76+i*18+pulse,34+i*9,tick+i*.8,0,Math.PI*2);
+    ctx.stroke();
+  }
+
+  for(let i=0;i<10;i++){
+    const a=i*Math.PI*2/10-tick;
+    const r=72+(i%2)*18+pulse;
+    const px=e.x+Math.cos(a)*r;
+    const py=e.y+Math.sin(a)*r*.68;
+    ctx.fillStyle=i%2===0?"#4c1d95":"#0f172a";
+    ctx.beginPath();
+    ctx.moveTo(px,py-16);
+    ctx.lineTo(px+14,py);
+    ctx.lineTo(px,py+16);
+    ctx.lineTo(px-14,py);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle=rage?"#fef08a":"#c084fc";
+    ctx.lineWidth=2;
+    ctx.stroke();
+  }
+
+  const core=ctx.createRadialGradient(e.x,e.y,8,e.x,e.y,64+pulse);
+  core.addColorStop(0,"#fef08a");
+  core.addColorStop(.28,rage?"#fb923c":"#c084fc");
+  core.addColorStop(.7,"#4c1d95");
+  core.addColorStop(1,"#020617");
+  ctx.fillStyle=core;
+  ctx.beginPath();
+  ctx.ellipse(e.x,e.y,58+pulse*.4,50+pulse*.25,0,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.strokeStyle="#020617";
+  ctx.lineWidth=5;
+  ctx.beginPath();
+  ctx.ellipse(e.x,e.y,40,34,0,0,Math.PI*2);
+  ctx.stroke();
+
+  ctx.fillStyle=rage?"#fef08a":"#e9d5ff";
+  ctx.beginPath();
+  ctx.arc(e.x,e.y,18+pulse*.2,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#020617";
+  ctx.beginPath();
+  ctx.arc(e.x,e.y,8,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.strokeStyle=rage?"#f97316":"#38bdf8";
+  ctx.lineWidth=3;
+  for(let i=-2;i<=2;i++){
+    ctx.beginPath();
+    ctx.moveTo(e.x+i*20,e.y+48);
+    ctx.lineTo(e.x+i*34+Math.sin(tick+i)*10,e.y+86);
+    ctx.stroke();
+  }
+
   ctx.shadowBlur=0;
 }
 
